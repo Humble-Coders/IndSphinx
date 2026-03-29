@@ -9,7 +9,8 @@ enum AuthUiState: Equatable {
 
 @MainActor
 class AuthViewModel: ObservableObject {
-    private let repository = IOSAuthRepository()
+    private let authRepository = IOSAuthRepository()
+    private let userProfileRepository = BackendUserProfileRepository()
 
     @Published var uiState: AuthUiState = .idle
 
@@ -19,22 +20,23 @@ class AuthViewModel: ObservableObject {
         uiState = .loading
         Task {
             do {
-                let user = try await repository.signIn(email: email, password: password)
+                let user = try await authRepository.signIn(email: email, password: password)
+                // Validate profile after successful auth
+                let profile = try await userProfileRepository.getProfile(uid: user.uid)
+                guard profile.enabled else {
+                    try? authRepository.signOut()
+                    uiState = .error(message: "Your account has been disabled. Please contact the admin.")
+                    return
+                }
+                guard profile.role == "OCCUPANT" else {
+                    try? authRepository.signOut()
+                    uiState = .error(message: "Access is restricted to occupants only.")
+                    return
+                }
                 uiState = .success(email: user.email)
-            } catch {
-                uiState = .error(message: friendlyError(error))
-            }
-        }
-    }
-
-    func signUp(email: String, password: String) {
-        guard !email.isEmpty else { uiState = .error(message: "Email cannot be blank"); return }
-        guard password.count >= 6 else { uiState = .error(message: "Password must be at least 6 characters"); return }
-        uiState = .loading
-        Task {
-            do {
-                let user = try await repository.signUp(email: email, password: password)
-                uiState = .success(email: user.email)
+            } catch let err as NSError where err.domain == "UserProfile" {
+                try? authRepository.signOut()
+                uiState = .error(message: err.localizedDescription)
             } catch {
                 uiState = .error(message: friendlyError(error))
             }
@@ -50,11 +52,11 @@ class AuthViewModel: ObservableObject {
 
     private func friendlyError(_ error: Error) -> String {
         let msg = error.localizedDescription
-        if msg.contains("email address is already in use") { return "This email is already registered" }
-        if msg.contains("password is invalid") || msg.contains("incorrect password") { return "Incorrect password" }
+        if msg.contains("password is invalid") || msg.contains("incorrect password") || msg.contains("INVALID_LOGIN_CREDENTIALS") {
+            return "Incorrect email or password"
+        }
         if msg.contains("no user record") || msg.contains("user not found") { return "No account found with this email" }
         if msg.contains("badly formatted") { return "Invalid email format" }
-        if msg.contains("at least 6 characters") { return "Password must be at least 6 characters" }
         return msg
     }
 }

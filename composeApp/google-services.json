@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "297429261848",
+    "project_id": "ind-sphinx",
+    "storage_bucket": "ind-sphinx.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:297429261848:android:9296a3ee35c049911ced6d",
+        "android_client_info": {
+          "package_name": "com.humblesolutions.indsphinx"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSXQC9kJWLjFQFKmqHh26KtQItM3lsjkE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

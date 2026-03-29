@@ -8,7 +8,6 @@ struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var passwordVisible = false
-    @State private var isSignUpMode = false
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
     private let backgroundGray = Color(red: 0.949, green: 0.957, blue: 0.973)
@@ -44,7 +43,7 @@ struct LoginView: View {
                                     .foregroundColor(.white)
                             }
                         Spacer().frame(height: 16)
-                        Text(isSignUpMode ? "Create Account" : "Welcome to Indsphinx")
+                        Text("Welcome to Indsphinx")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
                         Spacer().frame(height: 4)
@@ -100,19 +99,16 @@ struct LoginView: View {
                         .cornerRadius(12)
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor, lineWidth: 1))
 
-                        if !isSignUpMode {
-                            HStack {
-                                Spacer()
-                                Button(action: onForgotPasswordTap) {
-                                    Text("Forgot Password?")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(navyBlue)
-                                }
+                        HStack {
+                            Spacer()
+                            Button(action: onForgotPasswordTap) {
+                                Text("Forgot Password?")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(navyBlue)
                             }
-                            .padding(.top, 4)
-                        } else {
-                            Spacer().frame(height: 12)
                         }
+                        .padding(.top, 10)
+                        .padding(.bottom, 6)
 
                         if let error = errorMessage {
                             Text(error)
@@ -123,11 +119,7 @@ struct LoginView: View {
                         }
 
                         Button(action: {
-                            if isSignUpMode {
-                                viewModel.signUp(email: email.trimmingCharacters(in: .whitespaces), password: password)
-                            } else {
-                                viewModel.signIn(email: email.trimmingCharacters(in: .whitespaces), password: password)
-                            }
+                            viewModel.signIn(email: email.trimmingCharacters(in: .whitespaces), password: password)
                         }) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 12).fill(navyBlue)
@@ -135,7 +127,7 @@ struct LoginView: View {
                                     ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
                                 } else {
                                     HStack(spacing: 8) {
-                                        Text(isSignUpMode ? "Create Account" : "Login")
+                                        Text("Login")
                                             .font(.system(size: 16, weight: .semibold))
                                         Image(systemName: "arrow.right")
                                             .font(.system(size: 14, weight: .semibold))
@@ -146,32 +138,6 @@ struct LoginView: View {
                             .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
                         }
                         .disabled(isLoading)
-
-                        Spacer().frame(height: 20)
-
-                        HStack {
-                            Rectangle().fill(borderColor).frame(height: 1)
-                            Text("OR").font(.system(size: 13)).foregroundColor(.gray).padding(.horizontal, 8)
-                            Rectangle().fill(borderColor).frame(height: 1)
-                        }
-
-                        Spacer().frame(height: 16)
-
-                        HStack(spacing: 0) {
-                            Spacer()
-                            Text(isSignUpMode ? "Already have an account? " : "Don't have an account? ")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(red: 0.333, green: 0.333, blue: 0.333))
-                            Button(action: {
-                                isSignUpMode.toggle()
-                                viewModel.resetState()
-                            }) {
-                                Text(isSignUpMode ? "Sign In" : "Sign Up")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(navyBlue)
-                            }
-                            Spacer()
-                        }
                     }
                     .padding(24)
                     .background(Color.white)

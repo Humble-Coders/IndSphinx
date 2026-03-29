@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +25,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -67,7 +64,6 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var isSignUpMode by remember { mutableStateOf(false) }
     val isLoading = uiState is AuthUiState.Loading
 
     LaunchedEffect(uiState) {
@@ -115,7 +111,7 @@ fun LoginScreen(
                     }
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = if (isSignUpMode) "Create Account" else "Welcome to Indsphinx",
+                        text = "Welcome to Indsphinx",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1A1A2E)
@@ -197,15 +193,11 @@ fun LoginScreen(
                         enabled = !isLoading
                     )
 
-                    if (!isSignUpMode) {
-                        Spacer(Modifier.height(4.dp))
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                            TextButton(onClick = { /* TODO: forgot password */ }) {
-                                Text("Forgot Password?", color = NavyBlue, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                            }
+                    Spacer(Modifier.height(4.dp))
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                        TextButton(onClick = { /* TODO: forgot password */ }) {
+                            Text("Forgot Password?", color = NavyBlue, fontWeight = FontWeight.Medium, fontSize = 14.sp)
                         }
-                    } else {
-                        Spacer(Modifier.height(12.dp))
                     }
 
                     if (uiState is AuthUiState.Error) {
@@ -220,10 +212,7 @@ fun LoginScreen(
                     }
 
                     Button(
-                        onClick = {
-                            if (isSignUpMode) viewModel.signUp(email.trim(), password)
-                            else viewModel.signIn(email.trim(), password)
-                        },
+                        onClick = { viewModel.signIn(email.trim(), password) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
@@ -235,46 +224,10 @@ fun LoginScreen(
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp), strokeWidth = 2.5.dp)
                         } else {
                             Text(
-                                text = if (isSignUpMode) "Create Account  →" else "Login  →",
+                                text = "Login  →",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.White
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(20.dp))
-
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE0E0E0))
-                        Text("  OR  ", color = Color(0xFFAAAAAA), fontSize = 13.sp)
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE0E0E0))
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (isSignUpMode) "Already have an account? " else "Don't have an account? ",
-                            color = Color(0xFF555555),
-                            fontSize = 14.sp
-                        )
-                        TextButton(
-                            onClick = {
-                                isSignUpMode = !isSignUpMode
-                                viewModel.resetState()
-                            },
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text(
-                                text = if (isSignUpMode) "Sign In" else "Sign Up",
-                                color = NavyBlue,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }

@@ -5,8 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.humblesolutions.indsphinx.model.User
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
+import com.humblesolutions.indsphinx.repository.BackendUserProfileRepository
 import com.humblesolutions.indsphinx.usecase.SignInUseCase
-import com.humblesolutions.indsphinx.usecase.SignUpUseCase
+import com.humblesolutions.indsphinx.usecase.ValidateOccupantUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,7 +23,7 @@ sealed class AuthUiState {
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val authRepository = AndroidAuthRepository()
     private val signInUseCase = SignInUseCase(authRepository)
-    private val signUpUseCase = SignUpUseCase(authRepository)
+    private val validateOccupantUseCase = ValidateOccupantUseCase(BackendUserProfileRepository())
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -30,21 +31,18 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun signIn(email: String, password: String) {
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
-            _uiState.value = try {
-                AuthUiState.Success(signInUseCase.execute(email, password))
+            try {
+                val user = signInUseCase.execute(email, password)
+                try {
+                    validateOccupantUseCase.execute(user.uid)
+                    _uiState.value = AuthUiState.Success(user)
+                } catch (e: Exception) {
+                    // Auth succeeded but profile check failed — sign out immediately
+                    authRepository.signOut()
+                    _uiState.value = AuthUiState.Error(e.message ?: "Access denied.")
+                }
             } catch (e: Exception) {
-                AuthUiState.Error(friendlyMessage(e))
-            }
-        }
-    }
-
-    fun signUp(email: String, password: String) {
-        viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            _uiState.value = try {
-                AuthUiState.Success(signUpUseCase.execute(email, password))
-            } catch (e: Exception) {
-                AuthUiState.Error(friendlyMessage(e))
+                _uiState.value = AuthUiState.Error(friendlyMessage(e))
             }
         }
     }
@@ -58,11 +56,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private fun friendlyMessage(e: Exception): String {
         val msg = e.message ?: return "Authentication failed"
         return when {
-            "email address is already in use" in msg -> "This email is already registered"
-            "password is invalid" in msg -> "Incorrect password"
+            "password is invalid" in msg || "INVALID_LOGIN_CREDENTIALS" in msg -> "Incorrect email or password"
             "no user record" in msg -> "No account found with this email"
             "badly formatted" in msg -> "Invalid email format"
-            "at least 6 characters" in msg -> "Password must be at least 6 characters"
             else -> msg
         }
     }
