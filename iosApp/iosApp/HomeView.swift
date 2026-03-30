@@ -10,9 +10,9 @@ struct HomeView: View {
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
     private let backgroundGray = Color(red: 0.949, green: 0.957, blue: 0.973)
 
-    private var ready: (name: String, greeting: String, email: String, role: String)? {
-        if case .ready(let name, let greeting, let email, let role) = viewModel.state {
-            return (name, greeting, email, role)
+    private var ready: (name: String, greeting: String, email: String, role: String, empId: String, flatNumber: String, occupantFrom: Date?, isCoordinator: Bool, occupantDocId: String, flatId: String)? {
+        if case .ready(let name, let greeting, let email, let role, let empId, let flatNumber, let occupantFrom, let isCoordinator, let occupantDocId, let flatId) = viewModel.state {
+            return (name, greeting, email, role, empId, flatNumber, occupantFrom, isCoordinator, occupantDocId, flatId)
         }
         return nil
     }
@@ -21,26 +21,18 @@ struct HomeView: View {
         ZStack(alignment: .leading) {
             // Main content
             VStack(spacing: 0) {
-                HomeHeaderView(
-                    navyBlue: navyBlue,
-                    name: ready?.name ?? "",
-                    greeting: ready?.greeting ?? "",
-                    onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true } }
-                )
-
-                if selectedTab == 3 {
-                    ProfileContentView(
+                if selectedTab == 0 {
+                    HomeHeaderView(
                         navyBlue: navyBlue,
-                        backgroundGray: backgroundGray,
                         name: ready?.name ?? "",
-                        email: ready?.email ?? "",
-                        role: ready?.role ?? "",
-                        onSignOut: {
-                            viewModel.signOut()
-                            onSignOut()
-                        }
+                        greeting: ready?.greeting ?? "",
+                        flatNumber: ready?.flatNumber ?? "",
+                        onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true } }
                     )
-                } else {
+                }
+
+                switch selectedTab {
+                case 0:
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 20) {
                             HomeSearchBar(navyBlue: navyBlue)
@@ -54,6 +46,35 @@ struct HomeView: View {
                         .padding(.bottom, 24)
                     }
                     .background(backgroundGray)
+                case 1:
+                    ComplaintsView(
+                        occupantName: ready?.name ?? "",
+                        occupantEmail: ready?.email ?? "",
+                        occupantDocId: ready?.occupantDocId ?? "",
+                        flatNumber: ready?.flatNumber ?? "",
+                        flatId: ready?.flatId ?? "",
+                        onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true } }
+                    )
+                case 3:
+                    ProfileContentView(
+                        navyBlue: navyBlue,
+                        backgroundGray: backgroundGray,
+                        name: ready?.name ?? "",
+                        email: ready?.email ?? "",
+                        role: ready?.role ?? "",
+                        empId: ready?.empId ?? "",
+                        flatNumber: ready?.flatNumber ?? "",
+                        occupantFrom: ready?.occupantFrom,
+                        isCoordinator: ready?.isCoordinator ?? false,
+                        onSignOut: {
+                            viewModel.signOut()
+                            onSignOut()
+                        }
+                    )
+                default:
+                    Spacer()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(backgroundGray)
                 }
 
                 HomeBottomTabBar(selectedTab: $selectedTab, navyBlue: navyBlue)
@@ -74,6 +95,7 @@ struct HomeView: View {
                     name: ready?.name ?? "",
                     email: ready?.email ?? "",
                     role: ready?.role ?? "",
+                    flatNumber: ready?.flatNumber ?? "",
                     onClose: { withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false } },
                     onSignOut: {
                         viewModel.signOut()
@@ -97,6 +119,7 @@ private struct HomeHeaderView: View {
     let navyBlue: Color
     let name: String
     let greeting: String
+    let flatNumber: String
     let onMenuTap: () -> Void
 
     var body: some View {
@@ -120,7 +143,7 @@ private struct HomeHeaderView: View {
                     Image(systemName: "house")
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.7))
-                    Text("Flat A-304")
+                    Text(flatNumber.isEmpty ? "—" : flatNumber)
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -150,6 +173,7 @@ private struct DrawerContentView: View {
     let name: String
     let email: String
     let role: String
+    let flatNumber: String
     let onClose: () -> Void
     let onSignOut: () -> Void
 
@@ -188,14 +212,10 @@ private struct DrawerContentView: View {
                     Image(systemName: "house")
                         .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.7))
-                    Text("Flat A-304")
+                    Text(flatNumber.isEmpty ? "—" : flatNumber)
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.8))
                 }
-                Spacer().frame(height: 2)
-                Text("Tower A, Phoenix Heights")
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.6))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 20)
@@ -277,7 +297,18 @@ private struct ProfileContentView: View {
     let name: String
     let email: String
     let role: String
+    let empId: String
+    let flatNumber: String
+    let occupantFrom: Date?
+    let isCoordinator: Bool
     let onSignOut: () -> Void
+
+    private var occupantFromFormatted: String {
+        guard let date = occupantFrom else { return "—" }
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMM dd, yyyy"
+        return fmt.string(from: date)
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -308,11 +339,17 @@ private struct ProfileContentView: View {
                 VStack(spacing: 0) {
                     ProfileDetailRowView(systemIcon: "person", label: "Full Name", value: name.isEmpty ? "—" : name)
                     Divider().padding(.horizontal, 16)
+                    ProfileDetailRowView(systemIcon: "number", label: "Employee ID", value: empId.isEmpty ? "—" : empId)
+                    Divider().padding(.horizontal, 16)
                     ProfileDetailRowView(systemIcon: "envelope", label: "Email", value: email.isEmpty ? "—" : email)
+                    Divider().padding(.horizontal, 16)
+                    ProfileDetailRowView(systemIcon: "house", label: "Flat Number", value: flatNumber.isEmpty ? "—" : flatNumber)
                     Divider().padding(.horizontal, 16)
                     ProfileDetailRowView(systemIcon: "person.badge.key", label: "Role", value: role.isEmpty ? "—" : role)
                     Divider().padding(.horizontal, 16)
-                    ProfileDetailRowView(systemIcon: "house", label: "Unit", value: "Flat A-304")
+                    ProfileDetailRowView(systemIcon: "calendar", label: "Occupant Since", value: occupantFromFormatted)
+                    Divider().padding(.horizontal, 16)
+                    ProfileDetailRowView(systemIcon: "star", label: "Coordinator", value: isCoordinator ? "Yes" : "No")
                 }
                 .background(Color.white)
                 .cornerRadius(16)

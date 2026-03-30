@@ -7,7 +7,7 @@ class HomeViewModel: ObservableObject {
 
     enum State {
         case loading
-        case ready(name: String, greeting: String, email: String, role: String)
+        case ready(name: String, greeting: String, email: String, role: String, empId: String, flatNumber: String, occupantFrom: Date?, isCoordinator: Bool, occupantDocId: String, flatId: String)
         case accessDenied(reason: String)
     }
 
@@ -32,13 +32,24 @@ class HomeViewModel: ObservableObject {
                 shouldSignOut = true
                 return
             }
-            guard profile.role == "OCCUPANT" else {
+            guard profile.role == "OCCUPANT" || profile.role == "COORDINATOR" else {
                 try? authRepository.signOut()
-                state = .accessDenied(reason: "Access is restricted to occupants only.")
+                state = .accessDenied(reason: "Access is restricted to occupants and coordinators only.")
                 shouldSignOut = true
                 return
             }
-            state = .ready(name: profile.name, greeting: greeting(), email: profile.email, role: profile.role)
+            state = .ready(
+                name: profile.name,
+                greeting: greeting(),
+                email: profile.email,
+                role: profile.role,
+                empId: profile.empId,
+                flatNumber: profile.flatNumber,
+                occupantFrom: profile.occupantFrom,
+                isCoordinator: profile.isCoordinator,
+                occupantDocId: profile.occupantDocId,
+                flatId: profile.flatId
+            )
         } catch {
             try? authRepository.signOut()
             state = .accessDenied(reason: error.localizedDescription)

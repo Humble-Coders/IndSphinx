@@ -6,4 +6,10 @@ struct OccupantProfile {
     let email: String
     let role: String
     let enabled: Bool
+    let empId: String
+    let flatNumber: String
+    let occupantFrom: Date?
+    let isCoordinator: Bool
+    let occupantDocId: String
+    let flatId: String
 }

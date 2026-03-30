@@ -39,7 +39,10 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.Numbers
 import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
@@ -98,6 +101,12 @@ fun HomeScreen(onSignOut: () -> Unit) {
     val greeting = ready?.greeting ?: ""
     val email = ready?.email ?: ""
     val role = ready?.role ?: ""
+    val empId = ready?.empId ?: ""
+    val flatNumber = ready?.flatNumber ?: ""
+    val occupantFrom = ready?.occupantFrom ?: 0L
+    val isCoordinator = ready?.isCoordinator ?: false
+    val occupantDocId = ready?.occupantDocId ?: ""
+    val flatId = ready?.flatId ?: ""
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -110,6 +119,7 @@ fun HomeScreen(onSignOut: () -> Unit) {
                     name = name,
                     email = email,
                     role = role,
+                    flatNumber = flatNumber,
                     onClose = { scope.launch { drawerState.close() } },
                     onSignOut = {
                         viewModel.signOut()
@@ -156,16 +166,49 @@ fun HomeScreen(onSignOut: () -> Unit) {
                     .fillMaxSize()
                     .padding(bottom = padding.calculateBottomPadding())
             ) {
-                HomeHeader(
-                    name = name,
-                    greeting = greeting,
-                    onMenuClick = { scope.launch { drawerState.open() } }
-                )
-                if (selectedTab == 3) {
-                    ProfileContent(
+                when (selectedTab) {
+                    0 -> {
+                        HomeHeader(
+                            name = name,
+                            greeting = greeting,
+                            flatNumber = flatNumber,
+                            onMenuClick = { scope.launch { drawerState.open() } }
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            Spacer(Modifier.height(16.dp))
+                            HomeSearchBar()
+                            Spacer(Modifier.height(20.dp))
+                            QuickShortcutsSection()
+                            Spacer(Modifier.height(20.dp))
+                            NewNoticesSection()
+                            Spacer(Modifier.height(20.dp))
+                            RecentActivitiesSection()
+                            Spacer(Modifier.height(20.dp))
+                            OngoingComplaintsSection()
+                            Spacer(Modifier.height(24.dp))
+                        }
+                    }
+                    1 -> ComplaintsScreen(
+                        occupantName = name,
+                        occupantEmail = email,
+                        occupantDocId = occupantDocId,
+                        flatNumber = flatNumber,
+                        flatId = flatId,
+                        onMenuClick = { scope.launch { drawerState.open() } }
+                    )
+                    3 -> ProfileContent(
                         name = name,
                         email = email,
                         role = role,
+                        empId = empId,
+                        flatNumber = flatNumber,
+                        occupantFrom = occupantFrom,
+                        isCoordinator = isCoordinator,
                         onSignOut = {
                             viewModel.signOut()
                             onSignOut()
@@ -174,24 +217,11 @@ fun HomeScreen(onSignOut: () -> Unit) {
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                     )
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp)
+                    else -> Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Spacer(Modifier.height(16.dp))
-                        HomeSearchBar()
-                        Spacer(Modifier.height(20.dp))
-                        QuickShortcutsSection()
-                        Spacer(Modifier.height(20.dp))
-                        NewNoticesSection()
-                        Spacer(Modifier.height(20.dp))
-                        RecentActivitiesSection()
-                        Spacer(Modifier.height(20.dp))
-                        OngoingComplaintsSection()
-                        Spacer(Modifier.height(24.dp))
+                        Text("Coming Soon", color = Color(0xFF999999), fontSize = 16.sp)
                     }
                 }
             }
@@ -202,7 +232,7 @@ fun HomeScreen(onSignOut: () -> Unit) {
 // MARK: - Header
 
 @Composable
-private fun HomeHeader(name: String, greeting: String, onMenuClick: () -> Unit) {
+private fun HomeHeader(name: String, greeting: String, flatNumber: String, onMenuClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -237,7 +267,7 @@ private fun HomeHeader(name: String, greeting: String, onMenuClick: () -> Unit) 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Home, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Flat A-304", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                    Text(flatNumber.ifEmpty { "—" }, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
                 }
             }
             Spacer(Modifier.width(12.dp))
@@ -261,6 +291,7 @@ private fun HomeDrawerContent(
     name: String,
     email: String,
     role: String,
+    flatNumber: String,
     onClose: () -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -305,10 +336,8 @@ private fun HomeDrawerContent(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Home, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Flat A-304", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                    Text(flatNumber.ifEmpty { "—" }, color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
                 }
-                Spacer(Modifier.height(2.dp))
-                Text("Tower A, Phoenix Heights", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
             }
         }
 
@@ -380,9 +409,19 @@ private fun ProfileContent(
     name: String,
     email: String,
     role: String,
+    empId: String,
+    flatNumber: String,
+    occupantFrom: Long,
+    isCoordinator: Boolean,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val occupantFromFormatted = remember(occupantFrom) {
+        if (occupantFrom > 0L) {
+            val sdf = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(occupantFrom))
+        } else "—"
+    }
     Column(
         modifier = modifier.padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -421,9 +460,21 @@ private fun ProfileContent(
                 )
                 HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
                 ProfileDetailRow(
+                    icon = Icons.Outlined.Numbers,
+                    label = "Employee ID",
+                    value = empId.ifEmpty { "—" }
+                )
+                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
+                ProfileDetailRow(
                     icon = Icons.Outlined.Email,
                     label = "Email",
                     value = email.ifEmpty { "—" }
+                )
+                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
+                ProfileDetailRow(
+                    icon = Icons.Outlined.Home,
+                    label = "Flat Number",
+                    value = flatNumber.ifEmpty { "—" }
                 )
                 HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
                 ProfileDetailRow(
@@ -433,9 +484,15 @@ private fun ProfileContent(
                 )
                 HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
                 ProfileDetailRow(
-                    icon = Icons.Outlined.Home,
-                    label = "Unit",
-                    value = "Flat A-304"
+                    icon = Icons.Outlined.CalendarToday,
+                    label = "Occupant Since",
+                    value = occupantFromFormatted
+                )
+                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
+                ProfileDetailRow(
+                    icon = Icons.Outlined.StarBorder,
+                    label = "Coordinator",
+                    value = if (isCoordinator) "Yes" else "No"
                 )
             }
         }

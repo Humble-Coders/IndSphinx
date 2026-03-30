@@ -18,7 +18,13 @@ sealed class HomeUiState {
         val name: String,
         val greeting: String,
         val email: String,
-        val role: String
+        val role: String,
+        val empId: String,
+        val flatNumber: String,
+        val occupantFrom: Long,
+        val isCoordinator: Boolean,
+        val occupantDocId: String,
+        val flatId: String
     ) : HomeUiState()
     data class AccessDenied(val reason: String) : HomeUiState()
 }
@@ -46,7 +52,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     name = profile.name,
                     greeting = greeting(),
                     email = profile.email,
-                    role = profile.role
+                    role = profile.role,
+                    empId = profile.empId,
+                    flatNumber = profile.flatNumber,
+                    occupantFrom = profile.occupantFrom,
+                    isCoordinator = profile.isCoordinator,
+                    occupantDocId = profile.occupantDocId,
+                    flatId = profile.flatId
                 )
             } catch (e: Exception) {
                 authRepository.signOut()

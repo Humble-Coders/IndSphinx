@@ -28,9 +28,9 @@ class AuthViewModel: ObservableObject {
                     uiState = .error(message: "Your account has been disabled. Please contact the admin.")
                     return
                 }
-                guard profile.role == "OCCUPANT" else {
+                guard profile.role == "OCCUPANT" || profile.role == "COORDINATOR" else {
                     try? authRepository.signOut()
-                    uiState = .error(message: "Access is restricted to occupants only.")
+                    uiState = .error(message: "Access is restricted to occupants and coordinators only.")
                     return
                 }
                 uiState = .success(email: user.email)

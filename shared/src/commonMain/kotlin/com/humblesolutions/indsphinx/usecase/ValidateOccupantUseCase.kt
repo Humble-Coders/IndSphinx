@@ -9,8 +9,8 @@ class ValidateOccupantUseCase(private val userProfileRepository: UserProfileRepo
         if (!profile.enabled) {
             throw Exception("Your account has been disabled. Please contact the admin.")
         }
-        if (profile.role != "OCCUPANT") {
-            throw Exception("Access is restricted to occupants only.")
+        if (profile.role != "OCCUPANT" && profile.role != "COORDINATOR") {
+            throw Exception("Access is restricted to occupants and coordinators only.")
         }
         return profile
     }
