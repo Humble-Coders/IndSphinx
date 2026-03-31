@@ -13,7 +13,8 @@ class BackendComplaintRepository {
         category: String,
         priority: String,
         description: String,
-        problem: String
+        problem: String,
+        mediaUrls: [String] = []
     ) async throws -> String {
         let data: [String: Any] = [
             "FlatNumber": flatNumber,
@@ -28,7 +29,7 @@ class BackendComplaintRepository {
             "Priority": priority,
             "Description": description,
             "Problem": problem,
-            "MediaUrls": [String](),
+            "MediaUrls": mediaUrls,
             "WorkerName": "",
             "WorkerUid": ""
         ]

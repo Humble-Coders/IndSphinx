@@ -1,9 +1,20 @@
 package com.humblesolutions.indsphinx.ui
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +44,7 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Brush
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Construction
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.FlashOn
@@ -43,6 +55,7 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Plumbing
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,7 +67,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,17 +78,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.humblesolutions.indsphinx.model.ComplaintTemplate
 import com.humblesolutions.indsphinx.viewmodel.ComplaintsUiState
 import com.humblesolutions.indsphinx.viewmodel.ComplaintsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 private val NavyBlue = Color(0xFF1E2D6B)
 private val BgGray = Color(0xFFF2F4F8)
@@ -155,7 +179,7 @@ fun ComplaintsScreen(
                 template = state.selectedTemplate,
                 isSubmitting = false,
                 onBack = { viewModel.onBackFromForm() },
-                onSubmit = { problem, description, priority ->
+                onSubmit = { problem, description, priority, mediaUris ->
                     viewModel.submitComplaint(
                         problem = problem,
                         description = description,
@@ -164,7 +188,8 @@ fun ComplaintsScreen(
                         occupantEmail = occupantEmail,
                         occupantId = occupantDocId,
                         flatNumber = flatNumber,
-                        flatId = flatId
+                        flatId = flatId,
+                        mediaUris = mediaUris
                     )
                 }
             )
@@ -175,7 +200,7 @@ fun ComplaintsScreen(
                 template = ComplaintTemplate(),
                 isSubmitting = true,
                 onBack = {},
-                onSubmit = { _, _, _ -> }
+                onSubmit = { _, _, _, _ -> }
             )
         }
 
@@ -461,6 +486,189 @@ private fun CategoryCard(
     }
 }
 
+// ─── Media helpers ────────────────────────────────────────────────────────────
+
+private data class MediaItem(val uri: Uri, val isVideo: Boolean)
+
+private fun createTempUri(context: android.content.Context, isVideo: Boolean): Uri {
+    val ext = if (isVideo) ".mp4" else ".jpg"
+    val prefix = if (isVideo) "video_" else "photo_"
+    val file = File.createTempFile(prefix, ext, context.cacheDir)
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+}
+
+private fun hasCameraPermission(context: android.content.Context): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+@Composable
+private fun MediaThumbnail(item: MediaItem, onTap: () -> Unit, onRemove: () -> Unit) {
+    val context = LocalContext.current
+    var bitmap by remember(item.uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    LaunchedEffect(item.uri) {
+        withContext(Dispatchers.IO) {
+            bitmap = if (item.isVideo) {
+                try {
+                    val retriever = MediaMetadataRetriever()
+                    retriever.setDataSource(context, item.uri)
+                    val frame = retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    retriever.release()
+                    frame
+                } catch (e: Exception) { null }
+            } else {
+                context.contentResolver.openInputStream(item.uri)?.use { BitmapFactory.decodeStream(it) }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .size(72.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onTap() }
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap!!.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color(0xFFEEEEEE)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (item.isVideo) Icons.Outlined.VideoLibrary else Icons.Outlined.CameraAlt,
+                    null,
+                    tint = Color(0xFF888888),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+        // Play button overlay for videos
+        if (item.isVideo) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color(0x44000000)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.PlayCircle, null,
+                    tint = Color.White,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+        }
+        // Remove button — separate clickable so it doesn't trigger onTap
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(3.dp)
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(Color(0x99000000))
+                .clickable { onRemove() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Outlined.Close, null, tint = Color.White, modifier = Modifier.size(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun ImagePreviewDialog(uri: Uri, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var bitmap by remember(uri) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(uri) {
+        withContext(Dispatchers.IO) {
+            bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+        }
+    }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable { onDismiss() }
+        ) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap!!.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxWidth().align(Alignment.Center),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x66000000))
+                    .clickable { onDismiss() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.Close, null, tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaSourceDialog(title: String, onCamera: () -> Unit, onGallery: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(
+                    title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1A1A2E),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+                HorizontalDivider(color = Color(0xFFF0F0F0))
+                TextButton(
+                    onClick = { onCamera(); onDismiss() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Outlined.CameraAlt, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Camera", fontSize = 14.sp, color = Color(0xFF1A1A2E))
+                    Spacer(Modifier.weight(1f))
+                }
+                TextButton(
+                    onClick = { onGallery(); onDismiss() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Outlined.PlayCircle, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("Gallery", fontSize = 14.sp, color = Color(0xFF1A1A2E))
+                    Spacer(Modifier.weight(1f))
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel", fontSize = 14.sp, color = Color(0xFF888888))
+                }
+            }
+        }
+    }
+}
+
 // ─── Submit Complaint Form ────────────────────────────────────────────────────
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -469,13 +677,61 @@ private fun SubmitComplaintScreen(
     template: ComplaintTemplate,
     isSubmitting: Boolean,
     onBack: () -> Unit,
-    onSubmit: (problem: String, description: String, priority: String) -> Unit
+    onSubmit: (problem: String, description: String, priority: String, mediaUris: List<Uri>) -> Unit
 ) {
     var selectedProblem by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var selectedPriority by remember { mutableStateOf("") }
     val visuals = categoryVisuals(template.category)
     val canSubmit = selectedProblem.isNotBlank() && selectedPriority.isNotBlank() && !isSubmitting
+
+    // Media
+    val context = LocalContext.current
+    var mediaItems by remember { mutableStateOf(listOf<MediaItem>()) }
+    var previewImageUri by remember { mutableStateOf<Uri?>(null) }
+    var showPhotoSourceDialog by remember { mutableStateOf(false) }
+    var showVideoSourceDialog by remember { mutableStateOf(false) }
+    var pendingCameraAction by remember { mutableStateOf("") }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val galleryPhotoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris -> mediaItems = mediaItems + uris.map { MediaItem(it, false) } }
+
+    val galleryVideoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris -> mediaItems = mediaItems + uris.map { MediaItem(it, true) } }
+
+    val cameraPhotoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success -> if (success) pendingCameraUri?.let { mediaItems = mediaItems + MediaItem(it, false) } }
+
+    val cameraVideoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CaptureVideo()
+    ) { success -> if (success) pendingCameraUri?.let { mediaItems = mediaItems + MediaItem(it, true) } }
+
+    val cameraPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val uri = createTempUri(context, pendingCameraAction == "video")
+            pendingCameraUri = uri
+            if (pendingCameraAction == "video") cameraVideoLauncher.launch(uri)
+            else cameraPhotoLauncher.launch(uri)
+        }
+        pendingCameraAction = ""
+    }
+
+    fun launchCamera(isVideo: Boolean) {
+        if (hasCameraPermission(context)) {
+            val uri = createTempUri(context, isVideo)
+            pendingCameraUri = uri
+            if (isVideo) cameraVideoLauncher.launch(uri) else cameraPhotoLauncher.launch(uri)
+        } else {
+            pendingCameraAction = if (isVideo) "video" else "photo"
+            cameraPermLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().background(BgGray)) {
@@ -614,30 +870,18 @@ private fun SubmitComplaintScreen(
                                 ) {
                                     row.forEach { p ->
                                         val selected = selectedPriority == p
-                                        val isEmergency = p == "Emergency"
-                                        val baseBg = if (isEmergency) Color(0xFFFFEBEE) else Color(0xFFF5F5F5)
-                                        val baseTint = if (isEmergency) Color(0xFFE53935) else Color(0xFF444444)
+                                        val activeColor = when (p) {
+                                            "Low" -> Color(0xFF4CAF50)
+                                            "Medium" -> Color(0xFFFFC107)
+                                            "High" -> Color(0xFFFF9800)
+                                            "Emergency" -> Color(0xFFF44336)
+                                            else -> NavyBlue
+                                        }
                                         Box(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(10.dp))
-                                                .background(
-                                                    when {
-                                                        selected && isEmergency -> Color(0xFFE53935)
-                                                        selected -> NavyBlue
-                                                        else -> baseBg
-                                                    }
-                                                )
-                                                .border(
-                                                    1.dp,
-                                                    when {
-                                                        selected && isEmergency -> Color(0xFFE53935)
-                                                        selected -> NavyBlue
-                                                        isEmergency -> Color(0xFFE53935)
-                                                        else -> Color.Transparent
-                                                    },
-                                                    RoundedCornerShape(10.dp)
-                                                )
+                                                .background(if (selected) activeColor else Color(0xFFF5F5F5))
                                                 .clickable { selectedPriority = if (selected) "" else p }
                                                 .padding(vertical = 14.dp),
                                             contentAlignment = Alignment.Center
@@ -646,10 +890,7 @@ private fun SubmitComplaintScreen(
                                                 p,
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Medium,
-                                                color = when {
-                                                    selected -> Color.White
-                                                    else -> baseTint
-                                                }
+                                                color = if (selected) Color.White else Color(0xFF666666)
                                             )
                                         }
                                     }
@@ -673,13 +914,44 @@ private fun SubmitComplaintScreen(
                             MediaButton(
                                 icon = Icons.Outlined.CameraAlt,
                                 label = "Add Photo",
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                onClick = { showPhotoSourceDialog = true }
                             )
                             MediaButton(
                                 icon = Icons.Outlined.PlayCircle,
                                 label = "Add Video",
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                onClick = { showVideoSourceDialog = true }
                             )
+                        }
+                        if (mediaItems.isNotEmpty()) {
+                            Spacer(Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                mediaItems.forEachIndexed { index, item ->
+                                    MediaThumbnail(
+                                        item = item,
+                                        onTap = {
+                                            if (item.isVideo) {
+                                                try {
+                                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                        setDataAndType(item.uri, "video/*")
+                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    }
+                                                    context.startActivity(intent)
+                                                } catch (_: Exception) {}
+                                            } else {
+                                                previewImageUri = item.uri
+                                            }
+                                        },
+                                        onRemove = {
+                                            mediaItems = mediaItems.toMutableList().also { it.removeAt(index) }
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -691,7 +963,7 @@ private fun SubmitComplaintScreen(
             HorizontalDivider(color = Color(0xFFEEEEEE))
             Box(modifier = Modifier.fillMaxWidth().background(Color.White).padding(16.dp)) {
                 Button(
-                    onClick = { onSubmit(selectedProblem, description, selectedPriority) },
+                    onClick = { onSubmit(selectedProblem, description, selectedPriority, mediaItems.map { it.uri }) },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     enabled = canSubmit,
                     shape = RoundedCornerShape(12.dp),
@@ -708,16 +980,47 @@ private fun SubmitComplaintScreen(
                 }
             }
         }
+
+        // Image full-screen preview
+        previewImageUri?.let { uri ->
+            ImagePreviewDialog(uri = uri, onDismiss = { previewImageUri = null })
+        }
+
+        // Source selection dialogs
+        if (showPhotoSourceDialog) {
+            MediaSourceDialog(
+                title = "Add Photo",
+                onCamera = { launchCamera(false) },
+                onGallery = {
+                    galleryPhotoLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                onDismiss = { showPhotoSourceDialog = false }
+            )
+        }
+        if (showVideoSourceDialog) {
+            MediaSourceDialog(
+                title = "Add Video",
+                onCamera = { launchCamera(true) },
+                onGallery = {
+                    galleryVideoLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                    )
+                },
+                onDismiss = { showVideoSourceDialog = false }
+            )
+        }
     }
 }
 
 @Composable
-private fun MediaButton(icon: ImageVector, label: String, modifier: Modifier = Modifier) {
+private fun MediaButton(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFFF5F5F5))
-            .clickable {}
+            .clickable { onClick() }
             .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
     ) {

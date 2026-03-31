@@ -1,4 +1,7 @@
 import SwiftUI
+import PhotosUI
+import AVKit
+import AVFoundation
 
 struct ComplaintsView: View {
     let occupantName: String
@@ -46,7 +49,7 @@ struct ComplaintsView: View {
                 template: template,
                 isSubmitting: false,
                 onBack: { viewModel.onBackFromForm() },
-                onSubmit: { problem, description, priority in
+                onSubmit: { problem, description, priority, images, videoURLs in
                     viewModel.submitComplaint(
                         problem: problem,
                         description: description,
@@ -55,7 +58,9 @@ struct ComplaintsView: View {
                         occupantEmail: occupantEmail,
                         occupantDocId: occupantDocId,
                         flatNumber: flatNumber,
-                        flatId: flatId
+                        flatId: flatId,
+                        images: images,
+                        videoURLs: videoURLs
                     )
                 }
             )
@@ -67,7 +72,7 @@ struct ComplaintsView: View {
                 template: template,
                 isSubmitting: true,
                 onBack: {},
-                onSubmit: { _, _, _ in }
+                onSubmit: { _, _, _, _, _ in }
             )
 
         case .success:
@@ -334,11 +339,26 @@ private struct SubmitComplaintFormView: View {
     let template: ComplaintTemplate
     let isSubmitting: Bool
     let onBack: () -> Void
-    let onSubmit: (String, String, String) -> Void
+    let onSubmit: (String, String, String, [UIImage], [URL]) -> Void
 
     @State private var selectedProblem = ""
     @State private var description = ""
     @State private var selectedPriority = ""
+
+    // Media
+    @State private var pickedImages: [UIImage] = []
+    @State private var cameraVideoURLs: [URL] = []
+    @State private var photoPickerItems: [PhotosPickerItem] = []
+    @State private var videoPickerItems: [PhotosPickerItem] = []
+    @State private var showPhotoSourceSheet = false
+    @State private var showVideoSourceSheet = false
+    @State private var showCameraPhoto = false
+    @State private var showCameraVideo = false
+    @State private var showPhotoLibraryPicker = false
+    @State private var showVideoLibraryPicker = false
+    @State private var videoThumbnails: [URL: UIImage] = [:]
+    @State private var previewImage: UIImage? = nil
+    @State private var previewVideoURL: URL? = nil
 
     private var canSubmit: Bool {
         !selectedProblem.isEmpty && !selectedPriority.isEmpty && !isSubmitting
@@ -457,8 +477,7 @@ private struct SubmitComplaintFormView: View {
                                     ForEach(row, id: \.self) { p in
                                         PriorityButton(
                                             label: p,
-                                            isSelected: selectedPriority == p,
-                                            navyBlue: navyBlue
+                                            isSelected: selectedPriority == p
                                         ) {
                                             selectedPriority = selectedPriority == p ? "" : p
                                         }
@@ -479,8 +498,94 @@ private struct SubmitComplaintFormView: View {
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
                         HStack(spacing: 12) {
-                            MediaButtonView(systemIcon: "camera", label: "Add Photo")
-                            MediaButtonView(systemIcon: "video", label: "Add Video")
+                            Button { showPhotoSourceSheet = true } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "camera")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(Color(white: 0.4))
+                                    Text("Add Photo")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(Color(white: 0.27))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color(white: 0.96))
+                                .cornerRadius(10)
+                            }
+                            Button { showVideoSourceSheet = true } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "video")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(Color(white: 0.4))
+                                    Text("Add Video")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(Color(white: 0.27))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color(white: 0.96))
+                                .cornerRadius(10)
+                            }
+                        }
+                        if !pickedImages.isEmpty || !cameraVideoURLs.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(Array(pickedImages.enumerated()), id: \.offset) { i, img in
+                                        ZStack(alignment: .topTrailing) {
+                                            Image(uiImage: img)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 72, height: 72)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                .onTapGesture { previewImage = img }
+                                            Button {
+                                                if i < pickedImages.count { pickedImages.remove(at: i) }
+                                            } label: {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .font(.system(size: 18))
+                                                    .foregroundColor(.white)
+                                                    .shadow(radius: 2)
+                                            }
+                                            .offset(x: 6, y: -6)
+                                        }
+                                    }
+                                    ForEach(Array(cameraVideoURLs.enumerated()), id: \.offset) { i, url in
+                                        ZStack(alignment: .topTrailing) {
+                                            ZStack {
+                                                if let thumb = videoThumbnails[url] {
+                                                    Image(uiImage: thumb)
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                        .frame(width: 72, height: 72)
+                                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                } else {
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .fill(Color(white: 0.85))
+                                                        .frame(width: 72, height: 72)
+                                                }
+                                                // Play button overlay
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .fill(Color.black.opacity(0.28))
+                                                    .frame(width: 72, height: 72)
+                                                Image(systemName: "play.circle.fill")
+                                                    .font(.system(size: 28))
+                                                    .foregroundColor(.white)
+                                                    .shadow(radius: 2)
+                                            }
+                                            .onTapGesture { previewVideoURL = url }
+                                            Button {
+                                                if i < cameraVideoURLs.count { cameraVideoURLs.remove(at: i) }
+                                            } label: {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .font(.system(size: 18))
+                                                    .foregroundColor(.white)
+                                                    .shadow(radius: 2)
+                                            }
+                                            .offset(x: 6, y: -6)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(16)
@@ -500,7 +605,7 @@ private struct SubmitComplaintFormView: View {
             Divider()
             Button(action: {
                 if canSubmit {
-                    onSubmit(selectedProblem, description, selectedPriority)
+                    onSubmit(selectedProblem, description, selectedPriority, pickedImages, cameraVideoURLs)
                 }
             }) {
                 ZStack {
@@ -521,64 +626,125 @@ private struct SubmitComplaintFormView: View {
             .padding(16)
             .background(Color.white)
         }
+        .confirmationDialog("Add Photo", isPresented: $showPhotoSourceSheet) {
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Camera") { showCameraPhoto = true }
+            }
+            Button("Photo Library") { showPhotoLibraryPicker = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Add Video", isPresented: $showVideoSourceSheet) {
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button("Camera") { showCameraVideo = true }
+            }
+            Button("Video Library") { showVideoLibraryPicker = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .photosPicker(isPresented: $showPhotoLibraryPicker, selection: $photoPickerItems, matching: .images)
+        .photosPicker(isPresented: $showVideoLibraryPicker, selection: $videoPickerItems, matching: .videos)
+        .sheet(isPresented: $showCameraPhoto) {
+            CameraPickerView(mediaType: .photo) { image in
+                pickedImages.append(image)
+            } onVideoCapture: { _ in } onDismiss: { showCameraPhoto = false }
+        }
+        .sheet(isPresented: $showCameraVideo) {
+            CameraPickerView(mediaType: .video) { _ in } onVideoCapture: { url in
+                cameraVideoURLs.append(url)
+            } onDismiss: { showCameraVideo = false }
+        }
+        .onChange(of: photoPickerItems) { items in
+            Task {
+                for item in items {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        pickedImages.append(image)
+                    }
+                }
+            }
+        }
+        .onChange(of: videoPickerItems) { items in
+            Task {
+                for item in items {
+                    if let data = try? await item.loadTransferable(type: Data.self) {
+                        let url = FileManager.default.temporaryDirectory
+                            .appendingPathComponent(UUID().uuidString + ".mp4")
+                        try? data.write(to: url)
+                        cameraVideoURLs.append(url)
+                    }
+                }
+            }
+        }
+        .onChange(of: cameraVideoURLs) { urls in
+            for url in urls where videoThumbnails[url] == nil {
+                Task {
+                    if let thumb = await generateVideoThumbnail(for: url) {
+                        videoThumbnails[url] = thumb
+                    }
+                }
+            }
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { previewImage != nil },
+            set: { if !$0 { previewImage = nil } }
+        )) {
+            if let img = previewImage {
+                ImagePreviewView(image: img) { previewImage = nil }
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { previewVideoURL != nil },
+            set: { if !$0 { previewVideoURL = nil } }
+        )) {
+            if let url = previewVideoURL {
+                VideoPlayerView(url: url)
+            }
+        }
+    }
+
+    private func generateVideoThumbnail(for url: URL) async -> UIImage? {
+        await withCheckedContinuation { continuation in
+            let asset = AVAsset(url: url)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 200, height: 200)
+            generator.generateCGImagesAsynchronously(
+                forTimes: [NSValue(time: .zero)]
+            ) { _, cgImage, _, _, _ in
+                if let cgImage = cgImage {
+                    continuation.resume(returning: UIImage(cgImage: cgImage))
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
     }
 }
 
 private struct PriorityButton: View {
     let label: String
     let isSelected: Bool
-    let navyBlue: Color
     let action: () -> Void
 
-    private var isEmergency: Bool { label == "Emergency" }
-    private var bgColor: Color {
-        if isSelected { return isEmergency ? Color(red: 0.898, green: 0.224, blue: 0.208) : navyBlue }
-        return isEmergency ? Color(red: 1.0, green: 0.92, blue: 0.92) : Color(white: 0.96)
-    }
-    private var textColor: Color {
-        if isSelected { return .white }
-        return isEmergency ? Color(red: 0.898, green: 0.224, blue: 0.208) : Color(white: 0.27)
+    private var activeColor: Color {
+        switch label {
+        case "Low":       return Color(red: 0.298, green: 0.686, blue: 0.314)
+        case "Medium":    return Color(red: 1.0,   green: 0.757, blue: 0.027)
+        case "High":      return Color(red: 1.0,   green: 0.596, blue: 0.0)
+        case "Emergency": return Color(red: 0.957, green: 0.263, blue: 0.212)
+        default:          return Color(red: 0.118, green: 0.176, blue: 0.42)
+        }
     }
 
     var body: some View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(textColor)
+                .foregroundColor(isSelected ? .white : Color(white: 0.27))
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
-                .background(bgColor)
+                .background(isSelected ? activeColor : Color(white: 0.96))
                 .cornerRadius(10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(
-                            isEmergency && !isSelected
-                                ? Color(red: 0.898, green: 0.224, blue: 0.208)
-                                : Color.clear,
-                            lineWidth: 1
-                        )
-                )
         }
-    }
-}
-
-private struct MediaButtonView: View {
-    let systemIcon: String
-    let label: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemIcon)
-                .font(.system(size: 16))
-                .foregroundColor(Color(white: 0.4))
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundColor(Color(white: 0.27))
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(Color(white: 0.96))
-        .cornerRadius(10)
     }
 }
 
@@ -630,7 +796,13 @@ private struct FlexLayout: Layout {
 private struct FlexWrapView<Item: Hashable, Content: View>: View {
     let items: [Item]
     var spacing: CGFloat = 8
-    @ViewBuilder let content: (Item) -> Content
+    let content: (Item) -> Content
+
+    init(items: [Item], spacing: CGFloat = 8, @ViewBuilder content: @escaping (Item) -> Content) {
+        self.items = items
+        self.spacing = spacing
+        self.content = content
+    }
 
     var body: some View {
         FlexLayout(spacing: spacing) {
@@ -715,5 +887,90 @@ private struct ComplaintErrorDialog: View {
                 .cornerRadius(20)
                 .padding(.horizontal, 32)
             }
+    }
+}
+
+// MARK: - Media Preview
+
+private struct ImagePreviewView: View {
+    let image: UIImage
+    let onDismiss: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundColor(.white)
+                    .shadow(radius: 4)
+                    .padding(16)
+            }
+        }
+    }
+}
+
+private struct VideoPlayerView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let player = AVPlayer(url: url)
+        let controller = AVPlayerViewController()
+        controller.player = player
+        player.play()
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {}
+}
+
+// MARK: - Camera Picker
+
+private struct CameraPickerView: UIViewControllerRepresentable {
+    enum MediaType { case photo, video }
+
+    let mediaType: MediaType
+    let onPhotoCapture: (UIImage) -> Void
+    let onVideoCapture: (URL) -> Void
+    let onDismiss: () -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        if mediaType == .video {
+            picker.mediaTypes = ["public.movie"]
+            picker.videoQuality = .typeMedium
+        }
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraPickerView
+        init(_ parent: CameraPickerView) { self.parent = parent }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            if parent.mediaType == .photo, let image = info[.originalImage] as? UIImage {
+                parent.onPhotoCapture(image)
+            } else if parent.mediaType == .video, let url = info[.mediaURL] as? URL {
+                parent.onVideoCapture(url)
+            }
+            parent.onDismiss()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.onDismiss()
+        }
     }
 }
