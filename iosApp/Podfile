@@ -10,5 +10,6 @@ target 'iosApp' do
   pod 'Firebase/Auth'
   pod 'Firebase/Storage'
   pod 'Firebase/Messaging'
+  pod 'lottie-ios'
 
 end

@@ -16,6 +16,9 @@ class ComplaintsViewModel: ObservableObject {
         case submitting(selected: ComplaintTemplate)
         case success
         case error(String)
+        case loadingComplaints
+        case viewComplaints([Complaint])
+        case complaintDetail(Complaint, [Complaint])
     }
 
     @Published var state: State = .landing
@@ -159,6 +162,44 @@ class ComplaintsViewModel: ObservableObject {
 
     func dismissError() {
         state = .landing
+    }
+
+    func onViewComplaintsTapped(occupantId: String) {
+        state = .loadingComplaints
+        Task {
+            do {
+                let complaints = try await complaintRepo.fetchByOccupant(occupantId: occupantId)
+                state = .viewComplaints(complaints)
+            } catch {
+                state = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    func onComplaintSelected(_ complaint: Complaint) {
+        guard case .viewComplaints(let complaints) = state else { return }
+        state = .complaintDetail(complaint, complaints)
+    }
+
+    func onBackFromDetail() {
+        guard case .complaintDetail(_, let complaints) = state else { return }
+        state = .viewComplaints(complaints)
+    }
+
+    func onBackFromComplaints() {
+        state = .landing
+    }
+
+    func closeComplaint(id: String, occupantId: String) {
+        Task {
+            do {
+                try await complaintRepo.closeComplaint(id: id)
+                let complaints = try await complaintRepo.fetchByOccupant(occupantId: occupantId)
+                state = .viewComplaints(complaints)
+            } catch {
+                state = .error(error.localizedDescription)
+            }
+        }
     }
 }
 

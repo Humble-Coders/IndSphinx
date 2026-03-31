@@ -28,7 +28,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.messaging.FirebaseMessaging
+import com.humblesolutions.indsphinx.repository.BackendUserProfileRepository
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.tasks.await
 
 private val SplashTopColor = Color(0xFF2A3080)
 private val SplashBottomColor = Color(0xFF7B90C8)
@@ -37,8 +40,23 @@ private val SplashBottomColor = Color(0xFF7B90C8)
 fun SplashScreen(onSplashComplete: (isLoggedIn: Boolean) -> Unit) {
     LaunchedEffect(Unit) {
         delay(2000)
-        val isLoggedIn = FirebaseAuth.getInstance().currentUser != null
-        onSplashComplete(isLoggedIn)
+        val currentUser = FirebaseAuth.getInstance().currentUser
+        if (currentUser != null) {
+            val userProfileRepo = BackendUserProfileRepository()
+            val isEnabled = try { userProfileRepo.isUserEnabled(currentUser.uid) } catch (e: Exception) { true }
+            if (!isEnabled) {
+                FirebaseAuth.getInstance().signOut()
+                onSplashComplete(false)
+                return@LaunchedEffect
+            }
+            try {
+                val token = FirebaseMessaging.getInstance().token.await()
+                userProfileRepo.updateFcmToken(currentUser.uid, token)
+            } catch (_: Exception) {}
+            onSplashComplete(true)
+        } else {
+            onSplashComplete(false)
+        }
     }
 
     Box(

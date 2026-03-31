@@ -4,6 +4,16 @@ import FirebaseFirestore
 class BackendUserProfileRepository {
     private let db = Firestore.firestore()
 
+    func isUserEnabled(uid: String) async throws -> Bool {
+        let userDoc = try await db.collection("Users").document(uid).getDocument()
+        guard let data = userDoc.data() else { return false }
+        return data["Enabled"] as? Bool ?? false
+    }
+
+    func updateFcmToken(uid: String, token: String) async throws {
+        try await db.collection("Users").document(uid).updateData(["fcm_token": token])
+    }
+
     func getProfile(uid: String) async throws -> OccupantProfile {
         let userDoc = try await db.collection("Users").document(uid).getDocument()
         guard userDoc.exists, let userData = userDoc.data() else {

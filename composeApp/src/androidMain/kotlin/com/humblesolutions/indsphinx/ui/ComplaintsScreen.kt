@@ -1,7 +1,6 @@
 package com.humblesolutions.indsphinx.ui
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
@@ -29,15 +28,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.Person2
+import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material.icons.outlined.AcUnit
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Build
@@ -57,6 +61,7 @@ import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Plumbing
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.WaterDrop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -66,14 +71,23 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem as ExoMediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,9 +106,20 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.humblesolutions.indsphinx.model.Complaint
 import com.humblesolutions.indsphinx.model.ComplaintTemplate
 import com.humblesolutions.indsphinx.viewmodel.ComplaintsUiState
 import com.humblesolutions.indsphinx.viewmodel.ComplaintsViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.humblesolutions.indsphinx.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -156,7 +181,8 @@ fun ComplaintsScreen(
         is ComplaintsUiState.Landing -> {
             ComplaintsLandingScreen(
                 onMenuClick = onMenuClick,
-                onAddComplaint = { viewModel.onAddComplaintClick() }
+                onAddComplaint = { viewModel.onAddComplaintClick() },
+                onViewComplaints = { viewModel.onViewComplaintsClick(occupantDocId) }
             )
         }
 
@@ -207,7 +233,8 @@ fun ComplaintsScreen(
         is ComplaintsUiState.Success -> {
             ComplaintsLandingScreen(
                 onMenuClick = onMenuClick,
-                onAddComplaint = { viewModel.onAddComplaintClick() }
+                onAddComplaint = { viewModel.onAddComplaintClick() },
+                onViewComplaints = { viewModel.onViewComplaintsClick(occupantDocId) }
             )
             SuccessDialog(onDismiss = { viewModel.dismissSuccess() })
         }
@@ -215,11 +242,35 @@ fun ComplaintsScreen(
         is ComplaintsUiState.Error -> {
             ComplaintsLandingScreen(
                 onMenuClick = onMenuClick,
-                onAddComplaint = { viewModel.onAddComplaintClick() }
+                onAddComplaint = { viewModel.onAddComplaintClick() },
+                onViewComplaints = { viewModel.onViewComplaintsClick(occupantDocId) }
             )
             ErrorDialog(
                 message = state.message,
                 onDismiss = { viewModel.dismissError() }
+            )
+        }
+
+        is ComplaintsUiState.LoadingComplaints -> {
+            ComplaintsLoadingScreen()
+        }
+
+        is ComplaintsUiState.ViewComplaints -> {
+            BackHandler { viewModel.onBackFromComplaints() }
+            ViewComplaintsScreen(
+                complaints = state.complaints,
+                onBack = { viewModel.onBackFromComplaints() },
+                onComplaintClick = { viewModel.onComplaintSelected(it) }
+            )
+        }
+
+        is ComplaintsUiState.ComplaintDetail -> {
+            BackHandler { viewModel.onBackFromDetail() }
+            ComplaintDetailScreen(
+                complaint = state.complaint,
+                occupantId = occupantDocId,
+                onBack = { viewModel.onBackFromDetail() },
+                onClose = { id, oId -> viewModel.closeComplaint(id, oId) }
             )
         }
     }
@@ -228,7 +279,11 @@ fun ComplaintsScreen(
 // ─── Landing ──────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ComplaintsLandingScreen(onMenuClick: () -> Unit, onAddComplaint: () -> Unit) {
+private fun ComplaintsLandingScreen(
+    onMenuClick: () -> Unit,
+    onAddComplaint: () -> Unit,
+    onViewComplaints: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -278,7 +333,7 @@ private fun ComplaintsLandingScreen(onMenuClick: () -> Unit, onAddComplaint: () 
                 iconTint = NavyBlue,
                 title = "View Complaints",
                 subtitle = "Track and manage your submitted complaints",
-                onClick = {}
+                onClick = onViewComplaints
             )
 
             // Add Complaint card
@@ -420,7 +475,7 @@ private fun CategorySelectionScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)
         ) {
-            items(templates) { template ->
+            gridItems(templates) { template ->
                 val visuals = categoryVisuals(template.category)
                 CategoryCard(
                     category = template.category,
@@ -689,6 +744,7 @@ private fun SubmitComplaintScreen(
     val context = LocalContext.current
     var mediaItems by remember { mutableStateOf(listOf<MediaItem>()) }
     var previewImageUri by remember { mutableStateOf<Uri?>(null) }
+    var playVideoUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     var showVideoSourceDialog by remember { mutableStateOf(false) }
     var pendingCameraAction by remember { mutableStateOf("") }
@@ -934,17 +990,8 @@ private fun SubmitComplaintScreen(
                                     MediaThumbnail(
                                         item = item,
                                         onTap = {
-                                            if (item.isVideo) {
-                                                try {
-                                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                                        setDataAndType(item.uri, "video/*")
-                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                    }
-                                                    context.startActivity(intent)
-                                                } catch (_: Exception) {}
-                                            } else {
-                                                previewImageUri = item.uri
-                                            }
+                                            if (item.isVideo) playVideoUri = item.uri
+                                            else previewImageUri = item.uri
                                         },
                                         onRemove = {
                                             mediaItems = mediaItems.toMutableList().also { it.removeAt(index) }
@@ -972,18 +1019,37 @@ private fun SubmitComplaintScreen(
                         disabledContainerColor = Color(0xFFCCCCCC)
                     )
                 ) {
-                    if (isSubmitting) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Submit Complaint", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                    Text("Submit Complaint", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
+            }
+        }
+
+        // Lottie submitting overlay
+        if (isSubmitting) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center
+            ) {
+                val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.loader))
+                val progress by animateLottieCompositionAsState(composition, iterations = LottieConstants.IterateForever)
+                LottieAnimation(
+                    composition = composition,
+                    progress = { progress },
+                    modifier = Modifier.size(200.dp)
+                )
             }
         }
 
         // Image full-screen preview
         previewImageUri?.let { uri ->
             ImagePreviewDialog(uri = uri, onDismiss = { previewImageUri = null })
+        }
+
+        // Video player
+        playVideoUri?.let { uri ->
+            ExoPlayerDialog(url = uri.toString(), onDismiss = { playVideoUri = null })
         }
 
         // Source selection dialogs
@@ -1109,6 +1175,602 @@ private fun ErrorDialog(message: String, onDismiss: () -> Unit) {
                     Text("OK", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
+        }
+    }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+private fun formatDate(timestamp: Long): String {
+    if (timestamp == 0L) return "—"
+    return SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(timestamp))
+}
+
+@Composable
+private fun StatusChip(status: String) {
+    val (bg, fg) = when (status.uppercase()) {
+        "OPEN" -> Color(0xFFFFF3E0) to Color(0xFFE65100)
+        "IN_PROGRESS" -> Color(0xFFE3F2FD) to Color(0xFF1565C0)
+        "COMPLETED" -> Color(0xFFE8F5E9) to Color(0xFF2E7D32)
+        "CLOSED" -> Color(0xFFF5F5F5) to Color(0xFF757575)
+        else -> Color(0xFFF5F5F5) to Color(0xFF757575)
+    }
+    val label = when (status.uppercase()) {
+        "OPEN" -> "Open"
+        "IN_PROGRESS" -> "In Progress"
+        "COMPLETED" -> "Completed"
+        "CLOSED" -> "Closed"
+        else -> status
+    }
+    Box(
+        modifier = Modifier
+            .background(bg, RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = fg)
+    }
+}
+
+@Composable
+private fun PriorityBadge(priority: String) {
+    val (bg, fg) = when (priority.lowercase()) {
+        "low" -> Color(0xFFE8F5E9) to Color(0xFF2E7D32)
+        "medium" -> Color(0xFFFFF8E1) to Color(0xFFF57F17)
+        "high" -> Color(0xFFFFF3E0) to Color(0xFFE65100)
+        "emergency" -> Color(0xFFFFEBEE) to Color(0xFFC62828)
+        else -> Color(0xFFF5F5F5) to Color(0xFF757575)
+    }
+    Box(
+        modifier = Modifier
+            .background(bg, RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(priority.replaceFirstChar { it.uppercase() }, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = fg)
+    }
+}
+
+// ─── View Complaints ──────────────────────────────────────────────────────────
+
+@Composable
+private fun ViewComplaintsScreen(
+    complaints: List<Complaint>,
+    onBack: () -> Unit,
+    onComplaintClick: (Complaint) -> Unit
+) {
+    var selectedTab by remember { mutableStateOf(0) }
+    val ongoing = complaints.filter { it.status.uppercase() != "CLOSED" }
+    val closed = complaints.filter { it.status.uppercase() == "CLOSED" }
+    val currentList = if (selectedTab == 0) ongoing else closed
+
+    Column(modifier = Modifier.fillMaxSize().background(BgGray)) {
+        Box(modifier = Modifier.fillMaxWidth().background(NavyBlue)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.ArrowBack, null,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp).clickable { onBack() }
+                )
+                Spacer(Modifier.width(12.dp))
+                Text("My Complaints", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.White,
+            contentColor = NavyBlue,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = NavyBlue
+                )
+            }
+        ) {
+            listOf("Ongoing", "Closed").forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = {
+                        Text(
+                            title,
+                            fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                    }
+                )
+            }
+        }
+
+        if (currentList.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    if (selectedTab == 0) "No ongoing complaints" else "No closed complaints",
+                    color = Color(0xFF888888),
+                    fontSize = 15.sp
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item { Spacer(Modifier.height(12.dp)) }
+                items(currentList) { complaint ->
+                    ComplaintListCard(complaint = complaint, onClick = { onComplaintClick(complaint) })
+                }
+                item { Spacer(Modifier.height(16.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComplaintListCard(complaint: Complaint, onClick: () -> Unit) {
+    val visuals = categoryVisuals(complaint.category)
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(visuals.iconBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(visuals.icon, null, tint = visuals.iconTint, modifier = Modifier.size(24.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        complaint.category,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1A1A2E),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    StatusChip(status = complaint.status)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(complaint.problem, fontSize = 13.sp, color = Color(0xFF555555), maxLines = 1)
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(formatDate(complaint.date), fontSize = 12.sp, color = Color(0xFF888888))
+                    Spacer(Modifier.width(8.dp))
+                    PriorityBadge(priority = complaint.priority)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Color(0xFFCCCCCC), modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+// ─── Complaint Detail ─────────────────────────────────────────────────────────
+
+@Composable
+private fun ComplaintDetailScreen(
+    complaint: Complaint,
+    occupantId: String,
+    onBack: () -> Unit,
+    onClose: (complaintId: String, occupantId: String) -> Unit
+) {
+    val visuals = categoryVisuals(complaint.category)
+    var showCloseConfirm by remember { mutableStateOf(false) }
+    var previewImageUrl by remember { mutableStateOf<String?>(null) }
+    var playVideoUrl by remember { mutableStateOf<String?>(null) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().background(BgGray)) {
+            // App bar
+            Box(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Outlined.ArrowBack, null,
+                        tint = Color(0xFF1A1A2E),
+                        modifier = Modifier.size(24.dp).clickable { onBack() }
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Complaint Details",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1A1A2E)
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Spacer(Modifier.height(0.dp))
+
+                // Status + category header
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(1.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(visuals.iconBg),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(visuals.icon, null, tint = visuals.iconTint, modifier = Modifier.size(26.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(complaint.category, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1A2E))
+                            Spacer(Modifier.height(4.dp))
+                            Text(complaint.problem, fontSize = 13.sp, color = Color(0xFF666666))
+                        }
+                        StatusChip(status = complaint.status)
+                    }
+                }
+
+                // Details card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Details", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF888888))
+                        DetailRow(label = "Submitted", value = formatDate(complaint.date))
+                        DetailRow(label = "Priority") { PriorityBadge(priority = complaint.priority) }
+                        if (complaint.description.isNotBlank()) {
+                            DetailRow(label = "Description", value = complaint.description, multiLine = true)
+                        }
+                        if (complaint.resolveDate != 0L) {
+                            DetailRow(label = "Resolved On", value = formatDate(complaint.resolveDate))
+                        }
+                    }
+                }
+
+                // Worker card — shown when ASSIGNED or COMPLETED
+                val showWorker = complaint.workerName.isNotBlank() &&
+                    (complaint.status.uppercase() == "ASSIGNED" || complaint.status.uppercase() == "COMPLETED")
+                if (showWorker) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(1.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFEEF2FF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Outlined.Person, null, tint = NavyBlue, modifier = Modifier.size(22.dp))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("Assigned Worker", fontSize = 12.sp, color = Color(0xFF888888))
+                                Text(complaint.workerName, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A1A2E))
+                            }
+                        }
+                    }
+                }
+
+                // Worker remarks + media — shown only when COMPLETED
+                if (complaint.status.uppercase() == "COMPLETED") {
+                    if (complaint.workerRemarks.isNotBlank()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FFF8)),
+                            elevation = CardDefaults.cardElevation(1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("Worker Remarks", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF2E7D32))
+                                Spacer(Modifier.height(8.dp))
+                                Text(complaint.workerRemarks, fontSize = 14.sp, color = Color(0xFF1A1A2E))
+                            }
+                        }
+                    }
+                    if (complaint.workerMedia.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("Work Done (${complaint.workerMedia.size})", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF888888))
+                                Spacer(Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    complaint.workerMedia.forEach { url ->
+                                        val isVideo = url.contains(".mp4", ignoreCase = true)
+                                        RemoteMediaThumbnail(
+                                            url = url,
+                                            isVideo = isVideo,
+                                            onClick = {
+                                                if (isVideo) playVideoUrl = url
+                                                else previewImageUrl = url
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Occupant media card
+                if (complaint.mediaUrls.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(1.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Attached Media (${complaint.mediaUrls.size})", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF888888))
+                            Spacer(Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                complaint.mediaUrls.forEach { url ->
+                                    val isVideo = url.contains(".mp4", ignoreCase = true)
+                                    RemoteMediaThumbnail(
+                                        url = url,
+                                        isVideo = isVideo,
+                                        onClick = {
+                                            if (isVideo) playVideoUrl = url
+                                            else previewImageUrl = url
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // Mark as Closed button — only shown when COMPLETED
+            if (complaint.status.uppercase() == "COMPLETED") {
+                HorizontalDivider(color = Color(0xFFEEEEEE))
+                Box(modifier = Modifier.fillMaxWidth().background(Color.White).padding(16.dp)) {
+                    Button(
+                        onClick = { showCloseConfirm = true },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    ) {
+                        Text("Mark as Closed", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
+        if (showCloseConfirm) {
+            AlertDialog(
+                onDismissRequest = { showCloseConfirm = false },
+                title = { Text("Mark as Closed") },
+                text = { Text("Are you sure this complaint has been resolved to your satisfaction?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showCloseConfirm = false
+                        onClose(complaint.id, occupantId)
+                    }) {
+                        Text("Confirm", color = Color(0xFF2E7D32), fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCloseConfirm = false }) {
+                        Text("Cancel", color = Color(0xFF666666))
+                    }
+                }
+            )
+        }
+
+        previewImageUrl?.let { url ->
+            UrlImagePreviewDialog(url = url, onDismiss = { previewImageUrl = null })
+        }
+
+        playVideoUrl?.let { url ->
+            ExoPlayerDialog(url = url, onDismiss = { playVideoUrl = null })
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(
+    label: String,
+    value: String = "",
+    multiLine: Boolean = false,
+    content: @Composable (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = if (multiLine) Alignment.Top else Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 13.sp, color = Color(0xFF888888), modifier = Modifier.width(100.dp))
+        if (content != null) {
+            content()
+        } else {
+            Text(
+                value,
+                fontSize = 14.sp,
+                color = Color(0xFF1A1A2E),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun UrlImagePreviewDialog(url: String, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable { onDismiss() }
+        ) {
+            AsyncImage(
+                model = url,
+                contentDescription = null,
+                modifier = Modifier.fillMaxWidth().align(Alignment.Center),
+                contentScale = ContentScale.Fit
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x66000000))
+                    .clickable { onDismiss() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.Close, null, tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExoPlayerDialog(url: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val player = remember(url) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(ExoMediaItem.fromUri(url))
+            prepare()
+            playWhenReady = true
+        }
+    }
+    DisposableEffect(Unit) { onDispose { player.release() } }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        this.player = player
+                        useController = true
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x66000000))
+                    .clickable { onDismiss() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.Close, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RemoteMediaThumbnail(url: String, isVideo: Boolean, onClick: () -> Unit) {
+    var bitmap by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(url) {
+        if (isVideo) {
+            withContext(Dispatchers.IO) {
+                bitmap = try {
+                    val retriever = MediaMetadataRetriever()
+                    retriever.setDataSource(url, HashMap())
+                    val frame = retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    retriever.release()
+                    frame
+                } catch (_: Exception) { null }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .size(100.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFDDDDDD))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        if (isVideo) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap!!.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color(0x55000000)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.PlayCircle, null, tint = Color.White, modifier = Modifier.size(36.dp))
+            }
+        } else {
+            AsyncImage(
+                model = url,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import AVKit
 import AVFoundation
+import Lottie
 
 struct ComplaintsView: View {
     let occupantName: String
@@ -23,7 +24,8 @@ struct ComplaintsView: View {
                 navyBlue: navyBlue,
                 bgGray: bgGray,
                 onMenuTap: onMenuTap,
-                onAddComplaint: { viewModel.onAddComplaintTapped() }
+                onAddComplaint: { viewModel.onAddComplaintTapped() },
+                onViewComplaints: { viewModel.onViewComplaintsTapped(occupantId: occupantDocId) }
             )
 
         case .loadingTemplates:
@@ -80,7 +82,8 @@ struct ComplaintsView: View {
                 navyBlue: navyBlue,
                 bgGray: bgGray,
                 onMenuTap: onMenuTap,
-                onAddComplaint: {}
+                onAddComplaint: {},
+                onViewComplaints: { viewModel.onViewComplaintsTapped(occupantId: occupantDocId) }
             )
             .overlay {
                 ComplaintSuccessDialog(onDismiss: { viewModel.dismissSuccess() })
@@ -91,11 +94,37 @@ struct ComplaintsView: View {
                 navyBlue: navyBlue,
                 bgGray: bgGray,
                 onMenuTap: onMenuTap,
-                onAddComplaint: { viewModel.onAddComplaintTapped() }
+                onAddComplaint: { viewModel.onAddComplaintTapped() },
+                onViewComplaints: { viewModel.onViewComplaintsTapped(occupantId: occupantDocId) }
             )
             .overlay {
                 ComplaintErrorDialog(message: message, onDismiss: { viewModel.dismissError() })
             }
+
+        case .loadingComplaints:
+            Color(red: 0.949, green: 0.957, blue: 0.973)
+                .ignoresSafeArea()
+                .overlay {
+                    ProgressView().tint(navyBlue)
+                }
+
+        case .viewComplaints(let complaints):
+            ViewComplaintsView(
+                navyBlue: navyBlue,
+                bgGray: bgGray,
+                complaints: complaints,
+                onBack: { viewModel.onBackFromComplaints() },
+                onComplaintTap: { viewModel.onComplaintSelected($0) }
+            )
+
+        case .complaintDetail(let complaint, _):
+            ComplaintDetailView(
+                navyBlue: navyBlue,
+                complaint: complaint,
+                occupantId: occupantDocId,
+                onBack: { viewModel.onBackFromDetail() },
+                onClose: { id, oId in viewModel.closeComplaint(id: id, occupantId: oId) }
+            )
         }
     }
 }
@@ -138,6 +167,7 @@ private struct ComplaintsLandingView: View {
     let bgGray: Color
     let onMenuTap: () -> Void
     let onAddComplaint: () -> Void
+    let onViewComplaints: () -> Void
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -169,7 +199,7 @@ private struct ComplaintsLandingView: View {
                         iconColor: navyBlue,
                         title: "View Complaints",
                         subtitle: "Track and manage your submitted complaints",
-                        action: {}
+                        action: onViewComplaints
                     )
                     ComplaintActionCard(
                         systemIcon: "plus.circle.fill",
@@ -609,13 +639,9 @@ private struct SubmitComplaintFormView: View {
                 }
             }) {
                 ZStack {
-                    if isSubmitting {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text("Submit Complaint")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
+                    Text("Submit Complaint")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
@@ -697,6 +723,16 @@ private struct SubmitComplaintFormView: View {
         )) {
             if let url = previewVideoURL {
                 VideoPlayerView(url: url)
+            }
+        }
+        .overlay {
+            if isSubmitting {
+                ZStack {
+                    Color.black.opacity(0.4).ignoresSafeArea()
+                    LottieView(animation: .named("loader"))
+                        .playing(loopMode: .loop)
+                        .frame(width: 200, height: 200)
+                }
             }
         }
     }
@@ -914,6 +950,53 @@ private struct ImagePreviewView: View {
     }
 }
 
+// MARK: - Video Thumbnail
+
+private struct VideoThumbnailView: View {
+    let url: String
+    @State private var thumbnail: UIImage? = nil
+
+    var body: some View {
+        ZStack {
+            if let thumb = thumbnail {
+                Image(uiImage: thumb)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 100, height: 100)
+                    .clipped()
+            } else {
+                Color(white: 0.85).frame(width: 100, height: 100)
+            }
+            Color.black.opacity(0.35)
+            Image(systemName: "play.circle.fill")
+                .font(.system(size: 34))
+                .foregroundColor(.white)
+        }
+        .frame(width: 100, height: 100)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .task { thumbnail = await loadThumbnail() }
+    }
+
+    private func loadThumbnail() async -> UIImage? {
+        guard let videoURL = URL(string: url) else { return nil }
+        let asset = AVURLAsset(url: videoURL)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 200, height: 200)
+        return await withCheckedContinuation { continuation in
+            generator.generateCGImagesAsynchronously(
+                forTimes: [NSValue(time: .zero)]
+            ) { _, cgImage, _, _, _ in
+                if let cg = cgImage {
+                    continuation.resume(returning: UIImage(cgImage: cg))
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+}
+
 private struct VideoPlayerView: UIViewControllerRepresentable {
     let url: URL
 
@@ -971,6 +1054,513 @@ private struct CameraPickerView: UIViewControllerRepresentable {
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.onDismiss()
+        }
+    }
+}
+
+// MARK: - View Complaints
+
+private func statusColor(for status: String) -> (bg: Color, fg: Color) {
+    switch status.uppercased() {
+    case "OPEN":        return (Color(red: 1.0, green: 0.95, blue: 0.88), Color(red: 0.9, green: 0.40, blue: 0.0))
+    case "IN_PROGRESS": return (Color(red: 0.89, green: 0.95, blue: 1.0), Color(red: 0.08, green: 0.40, blue: 0.75))
+    case "COMPLETED":   return (Color(red: 0.91, green: 0.97, blue: 0.91), Color(red: 0.18, green: 0.49, blue: 0.20))
+    case "CLOSED":      return (Color(red: 0.96, green: 0.96, blue: 0.96), Color(red: 0.46, green: 0.46, blue: 0.46))
+    default:            return (Color(red: 0.96, green: 0.96, blue: 0.96), Color(red: 0.46, green: 0.46, blue: 0.46))
+    }
+}
+
+private func statusLabel(for status: String) -> String {
+    switch status.uppercased() {
+    case "OPEN":        return "Open"
+    case "IN_PROGRESS": return "In Progress"
+    case "COMPLETED":   return "Completed"
+    case "CLOSED":      return "Closed"
+    default:            return status
+    }
+}
+
+private func priorityColor(for priority: String) -> (bg: Color, fg: Color) {
+    switch priority.lowercased() {
+    case "low":       return (Color(red: 0.91, green: 0.97, blue: 0.91), Color(red: 0.18, green: 0.49, blue: 0.20))
+    case "medium":    return (Color(red: 1.0, green: 0.98, blue: 0.88), Color(red: 0.96, green: 0.50, blue: 0.09))
+    case "high":      return (Color(red: 1.0, green: 0.95, blue: 0.88), Color(red: 0.9, green: 0.40, blue: 0.0))
+    case "emergency": return (Color(red: 1.0, green: 0.93, blue: 0.93), Color(red: 0.78, green: 0.16, blue: 0.16))
+    default:          return (Color(red: 0.96, green: 0.96, blue: 0.96), Color(red: 0.46, green: 0.46, blue: 0.46))
+    }
+}
+
+private func formatDate(_ date: Date) -> String {
+    let f = DateFormatter()
+    f.dateFormat = "dd MMM yyyy"
+    return f.string(from: date)
+}
+
+private struct StatusChip: View {
+    let status: String
+    var body: some View {
+        let c = statusColor(for: status)
+        Text(statusLabel(for: status))
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(c.fg)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(c.bg, in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+private struct PriorityBadge: View {
+    let priority: String
+    var body: some View {
+        let c = priorityColor(for: priority)
+        let label = priority.isEmpty ? "—" : priority.prefix(1).uppercased() + priority.dropFirst()
+        Text(label)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(c.fg)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(c.bg, in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+private struct ViewComplaintsView: View {
+    let navyBlue: Color
+    let bgGray: Color
+    let complaints: [Complaint]
+    let onBack: () -> Void
+    let onComplaintTap: (Complaint) -> Void
+
+    @State private var selectedTab = 0
+
+    private var ongoing: [Complaint] { complaints.filter { $0.status.uppercased() != "CLOSED" } }
+    private var closed: [Complaint]  { complaints.filter { $0.status.uppercased() == "CLOSED" } }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // App bar
+            HStack(spacing: 12) {
+                Button(action: onBack) {
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.white)
+                }
+                Text("My Complaints")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(navyBlue.ignoresSafeArea(edges: .top))
+
+            // Tab bar
+            HStack(spacing: 0) {
+                ForEach(["Ongoing", "Closed"].indices, id: \.self) { i in
+                    let title = ["Ongoing", "Closed"][i]
+                    Button(action: { selectedTab = i }) {
+                        VStack(spacing: 0) {
+                            Text(title)
+                                .font(.system(size: 14, weight: selectedTab == i ? .semibold : .regular))
+                                .foregroundColor(selectedTab == i ? navyBlue : Color(white: 0.5))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                            Rectangle()
+                                .fill(selectedTab == i ? navyBlue : Color.clear)
+                                .frame(height: 2)
+                        }
+                    }
+                }
+            }
+            .background(Color.white)
+
+            let currentList = selectedTab == 0 ? ongoing : closed
+
+            if currentList.isEmpty {
+                Spacer()
+                Text(selectedTab == 0 ? "No ongoing complaints" : "No closed complaints")
+                    .font(.system(size: 15))
+                    .foregroundColor(Color(white: 0.53))
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(currentList) { complaint in
+                            ComplaintListCard(
+                                navyBlue: navyBlue,
+                                complaint: complaint,
+                                onTap: { onComplaintTap(complaint) }
+                            )
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+        }
+        .background(bgGray.ignoresSafeArea())
+    }
+}
+
+private struct ComplaintListCard: View {
+    let navyBlue: Color
+    let complaint: Complaint
+    let onTap: () -> Void
+
+    var body: some View {
+        let v = categoryVisuals(for: complaint.category)
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(v.bgColor)
+                    .frame(width: 48, height: 48)
+                    .overlay {
+                        Image(systemName: v.systemIcon)
+                            .font(.system(size: 22))
+                            .foregroundColor(v.iconColor)
+                    }
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(complaint.category)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                            .lineLimit(1)
+                        Spacer()
+                        StatusChip(status: complaint.status)
+                    }
+                    Text(complaint.problem)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(white: 0.33))
+                        .lineLimit(1)
+                    HStack(spacing: 8) {
+                        Text(formatDate(complaint.date))
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(white: 0.53))
+                        PriorityBadge(priority: complaint.priority)
+                    }
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color(white: 0.8))
+            }
+            .padding(16)
+            .background(Color.white)
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+        }
+    }
+}
+
+// MARK: - Complaint Detail
+
+private struct ComplaintDetailView: View {
+    let navyBlue: Color
+    let complaint: Complaint
+    let occupantId: String
+    let onBack: () -> Void
+    let onClose: (String, String) -> Void
+
+    @State private var showCloseConfirm = false
+    @State private var previewImageUrl: String? = nil
+    @State private var previewVideoUrl: URL? = nil
+
+    var body: some View {
+        let v = categoryVisuals(for: complaint.category)
+        VStack(spacing: 0) {
+            // App bar
+            HStack(spacing: 12) {
+                Button(action: onBack) {
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                }
+                Text("Complaint Details")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(Color.white)
+
+            ScrollView {
+                VStack(spacing: 14) {
+                    // Header card
+                    HStack(spacing: 12) {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(v.bgColor)
+                            .frame(width: 52, height: 52)
+                            .overlay {
+                                Image(systemName: v.systemIcon)
+                                    .font(.system(size: 24))
+                                    .foregroundColor(v.iconColor)
+                            }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(complaint.category)
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                            Text(complaint.problem)
+                                .font(.system(size: 13))
+                                .foregroundColor(Color(white: 0.4))
+                        }
+                        Spacer()
+                        StatusChip(status: complaint.status)
+                    }
+                    .padding(16)
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+
+                    // Details card
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Details")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Color(white: 0.53))
+                        DetailRowView(label: "Submitted", value: formatDate(complaint.date))
+                        Divider()
+                        HStack {
+                            Text("Priority")
+                                .font(.system(size: 13))
+                                .foregroundColor(Color(white: 0.53))
+                                .frame(width: 90, alignment: .leading)
+                            PriorityBadge(priority: complaint.priority)
+                            Spacer()
+                        }
+                        if !complaint.description.isEmpty {
+                            Divider()
+                            DetailRowView(label: "Description", value: complaint.description, multiLine: true)
+                        }
+                        if let resolveDate = complaint.resolveDate {
+                            Divider()
+                            DetailRowView(label: "Resolved On", value: formatDate(resolveDate))
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+
+                    // Worker card — shown when ASSIGNED or COMPLETED
+                    let showWorker = !complaint.workerName.isEmpty &&
+                        (complaint.status.uppercased() == "ASSIGNED" || complaint.status.uppercased() == "COMPLETED")
+                    if showWorker {
+                        HStack(spacing: 12) {
+                            Circle()
+                                .fill(Color(red: 0.933, green: 0.949, blue: 1.0))
+                                .frame(width: 42, height: 42)
+                                .overlay {
+                                    Image(systemName: "person")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(navyBlue)
+                                }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Assigned Worker")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(white: 0.53))
+                                Text(complaint.workerName)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                            }
+                            Spacer()
+                        }
+                        .padding(16)
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+                    }
+
+                    // Worker remarks + media — shown only when COMPLETED
+                    if complaint.status.uppercased() == "COMPLETED" {
+                        if !complaint.workerRemarks.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Worker Remarks")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.18, green: 0.49, blue: 0.20))
+                                Text(complaint.workerRemarks)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                            }
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(red: 0.97, green: 1.0, blue: 0.97))
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+                        }
+                        if !complaint.workerMedia.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Work Done (\(complaint.workerMedia.count))")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(Color(white: 0.53))
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        ForEach(complaint.workerMedia, id: \.self) { url in
+                                            let isVideo = url.contains(".mp4")
+                                            Group {
+                                                if isVideo {
+                                                    VideoThumbnailView(url: url)
+                                                } else {
+                                                    AsyncImage(url: URL(string: url)) { phase in
+                                                        switch phase {
+                                                        case .success(let img):
+                                                            img.resizable()
+                                                                .scaledToFill()
+                                                                .frame(width: 100, height: 100)
+                                                                .clipped()
+                                                        default:
+                                                            Color(white: 0.85)
+                                                                .frame(width: 100, height: 100)
+                                                                .overlay { ProgressView() }
+                                                        }
+                                                    }
+                                                    .frame(width: 100, height: 100)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                }
+                                            }
+                                            .onTapGesture {
+                                                if isVideo { previewVideoUrl = URL(string: url) }
+                                                else { previewImageUrl = url }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(16)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+                        }
+                    }
+
+                    // Occupant media card
+                    if !complaint.mediaUrls.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Attached Media (\(complaint.mediaUrls.count))")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(Color(white: 0.53))
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(complaint.mediaUrls, id: \.self) { url in
+                                        let isVideo = url.contains(".mp4")
+                                        Group {
+                                            if isVideo {
+                                                VideoThumbnailView(url: url)
+                                            } else {
+                                                AsyncImage(url: URL(string: url)) { phase in
+                                                    switch phase {
+                                                    case .success(let img):
+                                                        img.resizable()
+                                                            .scaledToFill()
+                                                            .frame(width: 100, height: 100)
+                                                            .clipped()
+                                                    default:
+                                                        Color(white: 0.85)
+                                                            .frame(width: 100, height: 100)
+                                                            .overlay { ProgressView() }
+                                                    }
+                                                }
+                                                .frame(width: 100, height: 100)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                            }
+                                        }
+                                        .onTapGesture {
+                                            if isVideo { previewVideoUrl = URL(string: url) }
+                                            else { previewImageUrl = url }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+                    }
+                }
+                .padding(16)
+            }
+            .background(Color(red: 0.949, green: 0.957, blue: 0.973))
+
+            // Mark as Closed — only if COMPLETED
+            if complaint.status.uppercased() == "COMPLETED" {
+                Divider()
+                Button(action: { showCloseConfirm = true }) {
+                    Text("Mark as Closed")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Color(red: 0.18, green: 0.49, blue: 0.20))
+                        .cornerRadius(12)
+                }
+                .padding(16)
+                .background(Color.white)
+            }
+        }
+        .background(Color.white.ignoresSafeArea(edges: .top))
+        .alert("Mark as Closed", isPresented: $showCloseConfirm) {
+            Button("Confirm") { onClose(complaint.id, occupantId) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure this complaint has been resolved to your satisfaction?")
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { previewImageUrl != nil },
+            set: { if !$0 { previewImageUrl = nil } }
+        )) {
+            ZStack(alignment: .topTrailing) {
+                Color.black.ignoresSafeArea()
+                if let url = previewImageUrl {
+                    AsyncImage(url: URL(string: url)) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        default:
+                            ProgressView().tint(.white)
+                        }
+                    }
+                }
+                Button(action: { previewImageUrl = nil }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 30))
+                        .foregroundColor(.white)
+                        .padding(20)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { previewVideoUrl != nil },
+            set: { if !$0 { previewVideoUrl = nil } }
+        )) {
+            ZStack(alignment: .topLeading) {
+                if let url = previewVideoUrl {
+                    VideoPlayerView(url: url).ignoresSafeArea()
+                }
+                Button(action: { previewVideoUrl = nil }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 30))
+                        .foregroundColor(.white)
+                        .padding(20)
+                }
+            }
+        }
+    }
+}
+
+private struct DetailRowView: View {
+    let label: String
+    let value: String
+    var multiLine: Bool = false
+
+    var body: some View {
+        HStack(alignment: multiLine ? .top : .center, spacing: 0) {
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundColor(Color(white: 0.53))
+                .frame(width: 90, alignment: .leading)
+            Text(value)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

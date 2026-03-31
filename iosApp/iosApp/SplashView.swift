@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import FirebaseMessaging
 
 struct SplashView: View {
     let onSplashComplete: (Bool) -> Void
@@ -62,8 +63,21 @@ struct SplashView: View {
         }
         .task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
-            let isLoggedIn = Auth.auth().currentUser != nil
-            onSplashComplete(isLoggedIn)
+            guard let currentUser = Auth.auth().currentUser else {
+                onSplashComplete(false)
+                return
+            }
+            let userProfileRepo = BackendUserProfileRepository()
+            let isEnabled = (try? await userProfileRepo.isUserEnabled(uid: currentUser.uid)) ?? true
+            if !isEnabled {
+                try? Auth.auth().signOut()
+                onSplashComplete(false)
+                return
+            }
+            if let token = try? await Messaging.messaging().token() {
+                try? await userProfileRepo.updateFcmToken(uid: currentUser.uid, token: token)
+            }
+            onSplashComplete(true)
         }
     }
 }

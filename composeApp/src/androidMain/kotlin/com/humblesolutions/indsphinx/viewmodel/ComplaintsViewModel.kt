@@ -18,7 +18,9 @@ import com.humblesolutions.indsphinx.model.ComplaintTemplate
 import com.humblesolutions.indsphinx.repository.BackendComplaintRepository
 import com.humblesolutions.indsphinx.repository.BackendComplaintTemplateRepository
 import com.humblesolutions.indsphinx.repository.BackendStorageRepository
+import com.humblesolutions.indsphinx.usecase.CloseComplaintUseCase
 import com.humblesolutions.indsphinx.usecase.FetchComplaintTemplatesUseCase
+import com.humblesolutions.indsphinx.usecase.FetchOccupantComplaintsUseCase
 import com.humblesolutions.indsphinx.usecase.SubmitComplaintUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -44,11 +46,16 @@ sealed class ComplaintsUiState {
     object Submitting : ComplaintsUiState()
     object Success : ComplaintsUiState()
     data class Error(val message: String) : ComplaintsUiState()
+    object LoadingComplaints : ComplaintsUiState()
+    data class ViewComplaints(val complaints: List<Complaint>) : ComplaintsUiState()
+    data class ComplaintDetail(val complaint: Complaint, val complaints: List<Complaint>) : ComplaintsUiState()
 }
 
 class ComplaintsViewModel(application: Application) : AndroidViewModel(application) {
     private val fetchTemplatesUseCase = FetchComplaintTemplatesUseCase(BackendComplaintTemplateRepository())
     private val submitComplaintUseCase = SubmitComplaintUseCase(BackendComplaintRepository())
+    private val fetchOccupantComplaintsUseCase = FetchOccupantComplaintsUseCase(BackendComplaintRepository())
+    private val closeComplaintUseCase = CloseComplaintUseCase(BackendComplaintRepository())
     private val storageRepo = BackendStorageRepository()
 
     private val _uiState = MutableStateFlow<ComplaintsUiState>(ComplaintsUiState.Landing)
@@ -233,5 +240,43 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
 
     fun dismissError() {
         _uiState.value = ComplaintsUiState.Landing
+    }
+
+    fun onViewComplaintsClick(occupantId: String) {
+        viewModelScope.launch {
+            _uiState.value = ComplaintsUiState.LoadingComplaints
+            try {
+                val complaints = fetchOccupantComplaintsUseCase.execute(occupantId)
+                _uiState.value = ComplaintsUiState.ViewComplaints(complaints)
+            } catch (e: Exception) {
+                _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to load complaints")
+            }
+        }
+    }
+
+    fun onComplaintSelected(complaint: Complaint) {
+        val complaints = (_uiState.value as? ComplaintsUiState.ViewComplaints)?.complaints ?: emptyList()
+        _uiState.value = ComplaintsUiState.ComplaintDetail(complaint, complaints)
+    }
+
+    fun onBackFromDetail() {
+        val complaints = (_uiState.value as? ComplaintsUiState.ComplaintDetail)?.complaints ?: emptyList()
+        _uiState.value = ComplaintsUiState.ViewComplaints(complaints)
+    }
+
+    fun onBackFromComplaints() {
+        _uiState.value = ComplaintsUiState.Landing
+    }
+
+    fun closeComplaint(complaintId: String, occupantId: String) {
+        viewModelScope.launch {
+            try {
+                closeComplaintUseCase.execute(complaintId)
+                val complaints = fetchOccupantComplaintsUseCase.execute(occupantId)
+                _uiState.value = ComplaintsUiState.ViewComplaints(complaints)
+            } catch (e: Exception) {
+                _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to close complaint")
+            }
+        }
     }
 }

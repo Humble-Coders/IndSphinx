@@ -18,6 +18,9 @@ firebaseStorage = "21.0.0"
 firebaseFirestore = "25.1.1"
 datastore = "1.1.1"
 androidx-navigation = "2.8.4"
+lottie = "6.4.0"
+coil = "2.7.0"
+media3 = "1.4.1"
 
 [libraries]
 google-firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
@@ -43,6 +46,10 @@ firebase-storage = { module = "com.google.firebase:firebase-storage-ktx", versio
 firebase-firestore = { module = "com.google.firebase:firebase-firestore-ktx", version.ref = "firebaseFirestore" }
 datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "androidx-navigation" }
+lottie-compose = { module = "com.airbnb.android:lottie-compose", version.ref = "lottie" }
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
+media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

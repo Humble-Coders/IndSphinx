@@ -7,6 +7,15 @@ import kotlinx.coroutines.tasks.await
 class BackendUserProfileRepository : UserProfileRepository {
     private val db = FirebaseFirestore.getInstance()
 
+    suspend fun isUserEnabled(uid: String): Boolean {
+        val userDoc = db.collection("Users").document(uid).get().await()
+        return userDoc.getBoolean("Enabled") ?: false
+    }
+
+    suspend fun updateFcmToken(uid: String, token: String) {
+        db.collection("Users").document(uid).update("fcm_token", token).await()
+    }
+
     override suspend fun getProfile(uid: String): OccupantProfile {
         val userDoc = db.collection("Users").document(uid).get().await()
         if (!userDoc.exists()) throw Exception("User profile not found. Please contact the admin.")

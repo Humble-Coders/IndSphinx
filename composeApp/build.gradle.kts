@@ -30,6 +30,10 @@ kotlin {
             implementation("com.google.firebase:firebase-messaging-ktx:24.1.1")
             implementation(libs.datastore.preferences)
             implementation(("com.google.firebase:firebase-bom:34.9.0"))
+            implementation(libs.lottie.compose)
+            implementation(libs.coil.compose)
+            implementation(libs.media3.exoplayer)
+            implementation(libs.media3.ui)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -41,7 +45,7 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
-            implementation(projects.shared)
+            implementation(projects.shared);
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

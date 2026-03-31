@@ -16,5 +16,7 @@ data class Complaint(
     val problem: String = "",
     val mediaUrls: List<String> = emptyList(),
     val workerName: String = "",
-    val workerUid: String = ""
+    val workerUid: String = "",
+    val workerRemarks: String = "",
+    val workerMedia: List<String> = emptyList()
 )
