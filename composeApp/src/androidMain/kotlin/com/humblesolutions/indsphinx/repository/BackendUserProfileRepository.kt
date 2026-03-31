@@ -2,6 +2,9 @@ package com.humblesolutions.indsphinx.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.humblesolutions.indsphinx.model.OccupantProfile
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 class BackendUserProfileRepository : UserProfileRepository {
@@ -10,6 +13,15 @@ class BackendUserProfileRepository : UserProfileRepository {
     suspend fun isUserEnabled(uid: String): Boolean {
         val userDoc = db.collection("Users").document(uid).get().await()
         return userDoc.getBoolean("Enabled") ?: false
+    }
+
+    fun observeIsEnabled(uid: String): Flow<Boolean> = callbackFlow {
+        val registration = db.collection("Users").document(uid)
+            .addSnapshotListener { snapshot, _ ->
+                val enabled = snapshot?.getBoolean("Enabled") ?: true
+                trySend(enabled)
+            }
+        awaitClose { registration.remove() }
     }
 
     suspend fun updateFcmToken(uid: String, token: String) {

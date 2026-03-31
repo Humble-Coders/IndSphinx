@@ -1,9 +1,13 @@
 import Foundation
+import FirebaseFirestore
 
 @MainActor
 class HomeViewModel: ObservableObject {
     private let authRepository = IOSAuthRepository()
     private let userProfileRepository = BackendUserProfileRepository()
+    private let noticeboardRepository = BackendNoticeboardRepository()
+    private var isEnabledListener: ListenerRegistration?
+    private var noticesListener: ListenerRegistration?
 
     enum State {
         case loading
@@ -13,9 +17,15 @@ class HomeViewModel: ObservableObject {
 
     @Published var state: State = .loading
     @Published var shouldSignOut: Bool = false
+    @Published var latestNotice: Notice?
 
     init() {
         Task { await loadProfile() }
+    }
+
+    deinit {
+        isEnabledListener?.remove()
+        noticesListener?.remove()
     }
 
     private func loadProfile() async {
@@ -50,6 +60,8 @@ class HomeViewModel: ObservableObject {
                 occupantDocId: profile.occupantDocId,
                 flatId: profile.flatId
             )
+            startObservingEnabled(uid: user.uid)
+            startObservingNotices()
         } catch {
             try? authRepository.signOut()
             state = .accessDenied(reason: error.localizedDescription)
@@ -57,7 +69,35 @@ class HomeViewModel: ObservableObject {
         }
     }
 
+    private func startObservingNotices() {
+        noticesListener?.remove()
+        noticesListener = noticeboardRepository.observeNotices { [weak self] notices in
+            Task { @MainActor in
+                self?.latestNotice = notices.first
+            }
+        }
+    }
+
+    private func startObservingEnabled(uid: String) {
+        isEnabledListener?.remove()
+        isEnabledListener = userProfileRepository.observeIsEnabled(uid: uid) { [weak self] enabled in
+            guard let self else { return }
+            Task { @MainActor in
+                if !enabled {
+                    self.isEnabledListener?.remove()
+                    self.isEnabledListener = nil
+                    try? self.authRepository.signOut()
+                    self.shouldSignOut = true
+                }
+            }
+        }
+    }
+
     func signOut() {
+        isEnabledListener?.remove()
+        isEnabledListener = nil
+        noticesListener?.remove()
+        noticesListener = nil
         try? authRepository.signOut()
     }
 

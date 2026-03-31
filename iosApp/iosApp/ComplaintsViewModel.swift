@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import AVFoundation
+import FirebaseFirestore
 
 @MainActor
 class ComplaintsViewModel: ObservableObject {
@@ -8,7 +9,10 @@ class ComplaintsViewModel: ObservableObject {
     private let complaintRepo = BackendComplaintRepository()
     private let storageRepo = BackendStorageRepository()
 
-    enum State {
+    private var templatesListener: ListenerRegistration?
+    private var complaintsListener: ListenerRegistration?
+
+    enum State: Equatable {
         case landing
         case loadingTemplates
         case selectCategory([ComplaintTemplate])
@@ -25,12 +29,18 @@ class ComplaintsViewModel: ObservableObject {
 
     func onAddComplaintTapped() {
         state = .loadingTemplates
-        Task {
-            do {
-                let templates = try await templateRepo.getTemplates()
-                state = .selectCategory(templates)
-            } catch {
-                state = .error(error.localizedDescription)
+        templatesListener?.remove()
+        templatesListener = templateRepo.observeTemplates { [weak self] templates in
+            guard let self else { return }
+            Task { @MainActor in
+                switch self.state {
+                case .loadingTemplates, .selectCategory:
+                    self.state = .selectCategory(templates)
+                case .submitForm(_, let selected):
+                    self.state = .submitForm(templates: templates, selected: selected)
+                default:
+                    break
+                }
             }
         }
     }
@@ -41,6 +51,8 @@ class ComplaintsViewModel: ObservableObject {
     }
 
     func onBackFromCategory() {
+        templatesListener?.remove()
+        templatesListener = nil
         state = .landing
     }
 
@@ -71,13 +83,11 @@ class ComplaintsViewModel: ObservableObject {
             do {
                 let uploadId = UUID().uuidString
 
-                // Upload all photos and videos in parallel
                 var orderedUrls = [String](repeating: "", count: images.count + videoURLs.count)
 
                 try await withThrowingTaskGroup(of: (Int, String).self) { group in
                     for (index, image) in images.enumerated() {
                         group.addTask {
-                            // Compress + resize: ~5 MB photo → ~250 KB
                             let data = image.compressedForUpload()
                             let path = "complaints/\(uploadId)/photo_\(index).jpg"
                             let url = try await storageRepo.uploadData(data, path: path)
@@ -123,15 +133,10 @@ class ComplaintsViewModel: ObservableObject {
 
     /**
      * Compresses video using AVAssetExportSession (MEDIUM quality preset).
-     * Typical 50-80 MB video → 5-15 MB (5-10× smaller), much faster upload.
-     * Falls back to the original URL on any failure.
      */
     private func compressVideo(url: URL) async -> URL {
-        // Skip compression for videos under 50MB
         let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        if fileSize < 50 * 1024 * 1024 {
-            return url
-        }
+        if fileSize < 50 * 1024 * 1024 { return url }
 
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + "_compressed.mp4")
@@ -147,11 +152,7 @@ class ComplaintsViewModel: ObservableObject {
 
         return await withCheckedContinuation { continuation in
             session.exportAsynchronously {
-                if session.status == .completed {
-                    continuation.resume(returning: outputURL)
-                } else {
-                    continuation.resume(returning: url)
-                }
+                continuation.resume(returning: session.status == .completed ? outputURL : url)
             }
         }
     }
@@ -166,12 +167,19 @@ class ComplaintsViewModel: ObservableObject {
 
     func onViewComplaintsTapped(occupantId: String) {
         state = .loadingComplaints
-        Task {
-            do {
-                let complaints = try await complaintRepo.fetchByOccupant(occupantId: occupantId)
-                state = .viewComplaints(complaints)
-            } catch {
-                state = .error(error.localizedDescription)
+        complaintsListener?.remove()
+        complaintsListener = complaintRepo.observeByOccupant(occupantId: occupantId) { [weak self] complaints in
+            guard let self else { return }
+            Task { @MainActor in
+                switch self.state {
+                case .loadingComplaints, .viewComplaints:
+                    self.state = .viewComplaints(complaints)
+                case .complaintDetail(let complaint, _):
+                    let refreshed = complaints.first { $0.id == complaint.id } ?? complaint
+                    self.state = .complaintDetail(refreshed, complaints)
+                default:
+                    break
+                }
             }
         }
     }
@@ -187,6 +195,8 @@ class ComplaintsViewModel: ObservableObject {
     }
 
     func onBackFromComplaints() {
+        complaintsListener?.remove()
+        complaintsListener = nil
         state = .landing
     }
 
@@ -194,8 +204,10 @@ class ComplaintsViewModel: ObservableObject {
         Task {
             do {
                 try await complaintRepo.closeComplaint(id: id)
-                let complaints = try await complaintRepo.fetchByOccupant(occupantId: occupantId)
-                state = .viewComplaints(complaints)
+                // Listener will auto-update the list; navigate back to it
+                if case .complaintDetail(_, let complaints) = state {
+                    state = .viewComplaints(complaints)
+                }
             } catch {
                 state = .error(error.localizedDescription)
             }
@@ -206,10 +218,6 @@ class ComplaintsViewModel: ObservableObject {
 // MARK: - Image compression helper
 
 private extension UIImage {
-    /**
-     * Scales to max 1280px on longest side, then compresses at 75% JPEG quality.
-     * Reduces a typical 5–8 MB phone photo to ~250–400 KB (15–20× smaller).
-     */
     func compressedForUpload() -> Data {
         let maxDimension: CGFloat = 1280
         let longestSide = max(size.width, size.height)

@@ -4,6 +4,14 @@ import FirebaseFirestore
 class BackendUserProfileRepository {
     private let db = Firestore.firestore()
 
+    func observeIsEnabled(uid: String, onChange: @escaping (Bool) -> Void) -> ListenerRegistration {
+        return db.collection("Users").document(uid)
+            .addSnapshotListener { snapshot, _ in
+                let enabled = snapshot?.data()?["Enabled"] as? Bool ?? true
+                onChange(enabled)
+            }
+    }
+
     func isUserEnabled(uid: String) async throws -> Bool {
         let userDoc = try await db.collection("Users").document(uid).getDocument()
         guard let data = userDoc.data() else { return false }

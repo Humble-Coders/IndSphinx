@@ -19,11 +19,10 @@ import com.humblesolutions.indsphinx.repository.BackendComplaintRepository
 import com.humblesolutions.indsphinx.repository.BackendComplaintTemplateRepository
 import com.humblesolutions.indsphinx.repository.BackendStorageRepository
 import com.humblesolutions.indsphinx.usecase.CloseComplaintUseCase
-import com.humblesolutions.indsphinx.usecase.FetchComplaintTemplatesUseCase
-import com.humblesolutions.indsphinx.usecase.FetchOccupantComplaintsUseCase
 import com.humblesolutions.indsphinx.usecase.SubmitComplaintUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -52,21 +51,34 @@ sealed class ComplaintsUiState {
 }
 
 class ComplaintsViewModel(application: Application) : AndroidViewModel(application) {
-    private val fetchTemplatesUseCase = FetchComplaintTemplatesUseCase(BackendComplaintTemplateRepository())
-    private val submitComplaintUseCase = SubmitComplaintUseCase(BackendComplaintRepository())
-    private val fetchOccupantComplaintsUseCase = FetchOccupantComplaintsUseCase(BackendComplaintRepository())
-    private val closeComplaintUseCase = CloseComplaintUseCase(BackendComplaintRepository())
+    private val templateRepo = BackendComplaintTemplateRepository()
+    private val complaintRepo = BackendComplaintRepository()
+    private val submitComplaintUseCase = SubmitComplaintUseCase(complaintRepo)
+    private val closeComplaintUseCase = CloseComplaintUseCase(complaintRepo)
     private val storageRepo = BackendStorageRepository()
 
     private val _uiState = MutableStateFlow<ComplaintsUiState>(ComplaintsUiState.Landing)
     val uiState: StateFlow<ComplaintsUiState> = _uiState.asStateFlow()
 
+    private var templatesJob: Job? = null
+    private var complaintsJob: Job? = null
+
     fun onAddComplaintClick() {
-        viewModelScope.launch {
-            _uiState.value = ComplaintsUiState.LoadingTemplates
+        _uiState.value = ComplaintsUiState.LoadingTemplates
+        templatesJob?.cancel()
+        templatesJob = viewModelScope.launch {
             try {
-                val templates = fetchTemplatesUseCase.execute()
-                _uiState.value = ComplaintsUiState.SelectCategory(templates)
+                templateRepo.observeTemplates().collect { templates ->
+                    when (_uiState.value) {
+                        is ComplaintsUiState.LoadingTemplates,
+                        is ComplaintsUiState.SelectCategory -> _uiState.value = ComplaintsUiState.SelectCategory(templates)
+                        is ComplaintsUiState.SubmitForm -> {
+                            val cur = _uiState.value as ComplaintsUiState.SubmitForm
+                            _uiState.value = cur.copy(templates = templates)
+                        }
+                        else -> {}
+                    }
+                }
             } catch (e: Exception) {
                 _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to load categories")
             }
@@ -79,6 +91,8 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun onBackFromCategory() {
+        templatesJob?.cancel()
+        templatesJob = null
         _uiState.value = ComplaintsUiState.Landing
     }
 
@@ -243,11 +257,21 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun onViewComplaintsClick(occupantId: String) {
-        viewModelScope.launch {
-            _uiState.value = ComplaintsUiState.LoadingComplaints
+        _uiState.value = ComplaintsUiState.LoadingComplaints
+        complaintsJob?.cancel()
+        complaintsJob = viewModelScope.launch {
             try {
-                val complaints = fetchOccupantComplaintsUseCase.execute(occupantId)
-                _uiState.value = ComplaintsUiState.ViewComplaints(complaints)
+                complaintRepo.observeByOccupant(occupantId).collect { complaints ->
+                    when (val cur = _uiState.value) {
+                        is ComplaintsUiState.LoadingComplaints,
+                        is ComplaintsUiState.ViewComplaints -> _uiState.value = ComplaintsUiState.ViewComplaints(complaints)
+                        is ComplaintsUiState.ComplaintDetail -> {
+                            val refreshed = complaints.find { it.id == cur.complaint.id } ?: cur.complaint
+                            _uiState.value = ComplaintsUiState.ComplaintDetail(refreshed, complaints)
+                        }
+                        else -> {}
+                    }
+                }
             } catch (e: Exception) {
                 _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to load complaints")
             }
@@ -265,6 +289,8 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun onBackFromComplaints() {
+        complaintsJob?.cancel()
+        complaintsJob = null
         _uiState.value = ComplaintsUiState.Landing
     }
 
@@ -272,7 +298,8 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             try {
                 closeComplaintUseCase.execute(complaintId)
-                val complaints = fetchOccupantComplaintsUseCase.execute(occupantId)
+                // Listener auto-updates the list; just navigate back to list view
+                val complaints = (_uiState.value as? ComplaintsUiState.ComplaintDetail)?.complaints ?: emptyList()
                 _uiState.value = ComplaintsUiState.ViewComplaints(complaints)
             } catch (e: Exception) {
                 _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to close complaint")

@@ -3,9 +3,12 @@ package com.humblesolutions.indsphinx.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.humblesolutions.indsphinx.model.Notice
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
+import com.humblesolutions.indsphinx.repository.BackendNoticeboardRepository
 import com.humblesolutions.indsphinx.repository.BackendUserProfileRepository
 import com.humblesolutions.indsphinx.usecase.ValidateOccupantUseCase
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,13 +34,19 @@ sealed class HomeUiState {
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val authRepository = AndroidAuthRepository()
-    private val validateOccupantUseCase = ValidateOccupantUseCase(BackendUserProfileRepository())
+    private val userProfileRepo = BackendUserProfileRepository()
+    private val noticeboardRepo = BackendNoticeboardRepository()
+    private val validateOccupantUseCase = ValidateOccupantUseCase(userProfileRepo)
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private val _latestNotice = MutableStateFlow<Notice?>(null)
+    val latestNotice: StateFlow<Notice?> = _latestNotice.asStateFlow()
+    private var enabledListenerJob: Job? = null
 
     init {
         loadProfile()
+        startObservingNotices()
     }
 
     private fun loadProfile() {
@@ -46,9 +55,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = HomeUiState.AccessDenied("Session expired. Please sign in again.")
                 return@launch
             }
-            _uiState.value = try {
+            try {
                 val profile = validateOccupantUseCase.execute(uid)
-                HomeUiState.Ready(
+                _uiState.value = HomeUiState.Ready(
                     name = profile.name,
                     greeting = greeting(),
                     email = profile.email,
@@ -60,9 +69,31 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     occupantDocId = profile.occupantDocId,
                     flatId = profile.flatId
                 )
+                startObservingEnabled(uid)
             } catch (e: Exception) {
                 authRepository.signOut()
-                HomeUiState.AccessDenied(e.message ?: "Access denied.")
+                _uiState.value = HomeUiState.AccessDenied(e.message ?: "Access denied.")
+            }
+        }
+    }
+
+    private fun startObservingNotices() {
+        viewModelScope.launch {
+            noticeboardRepo.observeNotices().collect { notices ->
+                _latestNotice.value = notices.firstOrNull()
+            }
+        }
+    }
+
+    private fun startObservingEnabled(uid: String) {
+        enabledListenerJob?.cancel()
+        enabledListenerJob = viewModelScope.launch {
+            userProfileRepo.observeIsEnabled(uid).collect { enabled ->
+                if (!enabled) {
+                    enabledListenerJob?.cancel()
+                    authRepository.signOut()
+                    _uiState.value = HomeUiState.AccessDenied("Your account has been disabled. Please contact the admin.")
+                }
             }
         }
     }

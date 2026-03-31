@@ -26,7 +26,6 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.FlashOn
@@ -37,11 +36,8 @@ import androidx.compose.material.icons.outlined.NavigateNext
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonAdd
-import androidx.compose.material.icons.outlined.Receipt
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Numbers
-import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -53,11 +49,8 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +59,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.humblesolutions.indsphinx.model.Complaint
+import com.humblesolutions.indsphinx.model.Notice
+import com.humblesolutions.indsphinx.repository.BackendComplaintRepository
 import androidx.compose.ui.Alignment
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -88,9 +84,13 @@ private val BackgroundGray = Color(0xFFF2F4F8)
 fun HomeScreen(onSignOut: () -> Unit) {
     val viewModel: HomeViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val latestNotice by viewModel.latestNotice.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf(0) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    var ongoingComplaints by remember { mutableStateOf<List<Complaint>>(emptyList()) }
+    var showVisitorPass by remember { mutableStateOf(false) }
+    var showFeedback by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState) {
         if (uiState is HomeUiState.AccessDenied) onSignOut()
@@ -108,19 +108,62 @@ fun HomeScreen(onSignOut: () -> Unit) {
     val occupantDocId = ready?.occupantDocId ?: ""
     val flatId = ready?.flatId ?: ""
 
+    LaunchedEffect(occupantDocId) {
+        if (occupantDocId.isNotEmpty()) {
+            try {
+                val all = BackendComplaintRepository().fetchByOccupant(occupantDocId)
+                ongoingComplaints = all.filter { it.status != "CLOSED" }.take(4)
+            } catch (_: Exception) {}
+        }
+    }
+
+    if (showVisitorPass) {
+        VisitorPassScreen(
+            occupantId = occupantDocId,
+            occupantName = name,
+            flatId = flatId,
+            flatNumber = flatNumber,
+            onBack = { showVisitorPass = false }
+        )
+        return
+    }
+
+    if (showFeedback) {
+        FeedbackScreen(
+            occupantId = occupantDocId,
+            occupantName = name,
+            onBack = { showFeedback = false }
+        )
+        return
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = Color.White,
+                windowInsets = WindowInsets(0),
                 modifier = Modifier.width(300.dp)
             ) {
                 HomeDrawerContent(
                     name = name,
-                    email = email,
-                    role = role,
                     flatNumber = flatNumber,
-                    onClose = { scope.launch { drawerState.close() } },
+                    onNavigateToComplaints = {
+                        scope.launch { drawerState.close() }
+                        selectedTab = 1
+                    },
+                    onNavigateToVisitorPass = {
+                        scope.launch { drawerState.close() }
+                        showVisitorPass = true
+                    },
+                    onNavigateToFeedback = {
+                        scope.launch { drawerState.close() }
+                        showFeedback = true
+                    },
+                    onNavigateToNoticeboard = {
+                        scope.launch { drawerState.close() }
+                        selectedTab = 2
+                    },
                     onSignOut = {
                         viewModel.signOut()
                         onSignOut()
@@ -181,15 +224,22 @@ fun HomeScreen(onSignOut: () -> Unit) {
                                 .padding(horizontal = 16.dp)
                         ) {
                             Spacer(Modifier.height(16.dp))
-                            HomeSearchBar()
+                            QuickShortcutsSection(
+                                onAddComplaint = { selectedTab = 1 },
+                                onNoticeboard = { selectedTab = 2 },
+                                onVisitorPass = { showVisitorPass = true },
+                                onFeedback = { showFeedback = true }
+                            )
                             Spacer(Modifier.height(20.dp))
-                            QuickShortcutsSection()
+                            NewNoticesSection(
+                                notice = latestNotice,
+                                onViewAll = { selectedTab = 2 }
+                            )
                             Spacer(Modifier.height(20.dp))
-                            NewNoticesSection()
-                            Spacer(Modifier.height(20.dp))
-                            RecentActivitiesSection()
-                            Spacer(Modifier.height(20.dp))
-                            OngoingComplaintsSection()
+                            OngoingComplaintsSection(
+                                complaints = ongoingComplaints,
+                                onViewAll = { selectedTab = 1 }
+                            )
                             Spacer(Modifier.height(24.dp))
                         }
                     }
@@ -199,6 +249,9 @@ fun HomeScreen(onSignOut: () -> Unit) {
                         occupantDocId = occupantDocId,
                         flatNumber = flatNumber,
                         flatId = flatId,
+                        onMenuClick = { scope.launch { drawerState.open() } }
+                    )
+                    2 -> NoticeboardScreen(
                         onMenuClick = { scope.launch { drawerState.open() } }
                     )
                     3 -> ProfileContent(
@@ -289,55 +342,28 @@ private fun HomeHeader(name: String, greeting: String, flatNumber: String, onMen
 @Composable
 private fun HomeDrawerContent(
     name: String,
-    email: String,
-    role: String,
     flatNumber: String,
-    onClose: () -> Unit,
+    onNavigateToComplaints: () -> Unit,
+    onNavigateToVisitorPass: () -> Unit,
+    onNavigateToFeedback: () -> Unit,
+    onNavigateToNoticeboard: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
         // Navy header
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(NavyBlue)
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 20.dp)
         ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Person, null, tint = Color.White, modifier = Modifier.size(36.dp))
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.15f))
-                            .clickable { onClose() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Close, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(name.ifEmpty { "—" }, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Home, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(flatNumber.ifEmpty { "—" }, color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
-                }
+            Text(name.ifEmpty { "—" }, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Home, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(flatNumber.ifEmpty { "—" }, color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
             }
         }
 
@@ -348,10 +374,10 @@ private fun HomeDrawerContent(
                 .background(Color.White)
                 .padding(vertical = 8.dp)
         ) {
-            DrawerMenuItem(icon = Icons.Outlined.Description, label = "Complaint")
-            DrawerMenuItem(icon = Icons.Outlined.PersonAdd, label = "Visitor Pass")
-            DrawerMenuItem(icon = Icons.Outlined.NotificationsNone, label = "Notice Board")
-            DrawerMenuItem(icon = Icons.Outlined.ChatBubbleOutline, label = "Feedback")
+            DrawerMenuItem(icon = Icons.Outlined.Description, label = "Complaint", onClick = onNavigateToComplaints)
+            DrawerMenuItem(icon = Icons.Outlined.PersonAdd, label = "Visitor Pass", onClick = onNavigateToVisitorPass)
+            DrawerMenuItem(icon = Icons.Outlined.NotificationsNone, label = "Notice Board", onClick = onNavigateToNoticeboard)
+            DrawerMenuItem(icon = Icons.Outlined.ChatBubbleOutline, label = "Feedback", onClick = onNavigateToFeedback)
         }
 
         // Logout
@@ -379,11 +405,11 @@ private fun HomeDrawerContent(
 }
 
 @Composable
-private fun DrawerMenuItem(icon: ImageVector, label: String) {
+private fun DrawerMenuItem(icon: ImageVector, label: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { }
+            .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -423,7 +449,9 @@ private fun ProfileContent(
         } else "—"
     }
     Column(
-        modifier = modifier.padding(horizontal = 16.dp),
+        modifier = modifier
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(32.dp))
@@ -439,9 +467,9 @@ private fun ProfileContent(
             Icon(Icons.Outlined.Person, null, tint = Color.White, modifier = Modifier.size(52.dp))
         }
         Spacer(Modifier.height(16.dp))
-        Text(name.ifEmpty { "—" }, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1A2E))
+        Text(name.ifEmpty { "—" }, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1A2E))
         Spacer(Modifier.height(4.dp))
-        Text(role.ifEmpty { "—" }, fontSize = 13.sp, color = NavyBlue, fontWeight = FontWeight.Medium)
+        Text(role.ifEmpty { "—" }, fontSize = 14.sp, color = NavyBlue, fontWeight = FontWeight.Medium)
 
         Spacer(Modifier.height(28.dp))
 
@@ -452,43 +480,43 @@ private fun ProfileContent(
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 ProfileDetailRow(
                     icon = Icons.Outlined.Person,
                     label = "Full Name",
                     value = name.ifEmpty { "—" }
                 )
-                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(horizontal = 16.dp))
                 ProfileDetailRow(
                     icon = Icons.Outlined.Numbers,
                     label = "Employee ID",
                     value = empId.ifEmpty { "—" }
                 )
-                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(horizontal = 16.dp))
                 ProfileDetailRow(
                     icon = Icons.Outlined.Email,
                     label = "Email",
                     value = email.ifEmpty { "—" }
                 )
-                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(horizontal = 16.dp))
                 ProfileDetailRow(
                     icon = Icons.Outlined.Home,
                     label = "Flat Number",
                     value = flatNumber.ifEmpty { "—" }
                 )
-                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(horizontal = 16.dp))
                 ProfileDetailRow(
                     icon = Icons.Outlined.Badge,
                     label = "Role",
                     value = role.ifEmpty { "—" }
                 )
-                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(horizontal = 16.dp))
                 ProfileDetailRow(
                     icon = Icons.Outlined.CalendarToday,
                     label = "Occupant Since",
                     value = occupantFromFormatted
                 )
-                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = Color(0xFFF0F0F0), modifier = Modifier.padding(horizontal = 16.dp))
                 ProfileDetailRow(
                     icon = Icons.Outlined.StarBorder,
                     label = "Coordinator",
@@ -521,20 +549,24 @@ private fun ProfileContent(
 
 @Composable
 private fun ProfileDetailRow(icon: ImageVector, label: String, value: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(Color(0xFFF0F4FF)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = NavyBlue, modifier = Modifier.size(18.dp))
+            Icon(icon, null, tint = NavyBlue, modifier = Modifier.size(20.dp))
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Column {
-            Text(label, fontSize = 11.sp, color = Color(0xFF999999))
-            Text(value, fontSize = 14.sp, color = Color(0xFF1A1A2E), fontWeight = FontWeight.Medium)
+            Text(label, fontSize = 12.sp, color = Color(0xFF999999))
+            Spacer(Modifier.height(2.dp))
+            Text(value, fontSize = 15.sp, color = Color(0xFF1A1A2E), fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -542,28 +574,7 @@ private fun ProfileDetailRow(icon: ImageVector, label: String, value: String) {
 // MARK: - Home tab content
 
 @Composable
-private fun HomeSearchBar() {
-    OutlinedTextField(
-        value = "",
-        onValueChange = {},
-        modifier = Modifier.fillMaxWidth(),
-        placeholder = {
-            Text("Search complaints, feedback, support", color = Color(0xFFAAAAAA), fontSize = 13.sp)
-        },
-        leadingIcon = { Icon(Icons.Outlined.Search, null, tint = Color(0xFFAAAAAA)) },
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            unfocusedBorderColor = Color(0xFFE0E0E0),
-            focusedBorderColor = NavyBlue,
-            unfocusedContainerColor = Color.White,
-            focusedContainerColor = Color.White
-        ),
-        singleLine = true
-    )
-}
-
-@Composable
-private fun QuickShortcutsSection() {
+private fun QuickShortcutsSection(onAddComplaint: () -> Unit, onNoticeboard: () -> Unit = {}, onVisitorPass: () -> Unit = {}, onFeedback: () -> Unit = {}) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Outlined.FlashOn, null, tint = NavyBlue, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
@@ -589,14 +600,16 @@ private fun QuickShortcutsSection() {
                     icon = Icons.Outlined.Add,
                     iconBg = Color(0xFFEEF2FF),
                     iconTint = Color(0xFF3B4FD8),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onClick = onAddComplaint
                 )
                 ShortcutItem(
-                    label = "Ledger",
-                    icon = Icons.Outlined.Receipt,
-                    iconBg = Color(0xFFE6F7F7),
-                    iconTint = Color(0xFF0D9488),
-                    modifier = Modifier.weight(1f)
+                    label = "Notice Board",
+                    icon = Icons.Outlined.NotificationsNone,
+                    iconBg = Color(0xFFDDE3FF),
+                    iconTint = NavyBlue,
+                    modifier = Modifier.weight(1f),
+                    onClick = onNoticeboard
                 )
             }
             Row(
@@ -608,14 +621,16 @@ private fun QuickShortcutsSection() {
                     icon = Icons.Outlined.PersonAdd,
                     iconBg = Color(0xFFECFDF5),
                     iconTint = Color(0xFF059669),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onClick = onVisitorPass
                 )
                 ShortcutItem(
                     label = "Feedback",
                     icon = Icons.Outlined.ChatBubbleOutline,
                     iconBg = Color(0xFFFFF7ED),
                     iconTint = Color(0xFFD97706),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onClick = onFeedback
                 )
             }
         }
@@ -628,10 +643,13 @@ private fun ShortcutItem(
     icon: ImageVector,
     iconBg: Color,
     iconTint: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     Column(
-        modifier = modifier.padding(vertical = 4.dp),
+        modifier = modifier
+            .clickable { onClick() }
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
@@ -649,7 +667,7 @@ private fun ShortcutItem(
 }
 
 @Composable
-private fun NewNoticesSection() {
+private fun NewNoticesSection(notice: Notice?, onViewAll: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -660,105 +678,104 @@ private fun NewNoticesSection() {
             Spacer(Modifier.width(6.dp))
             Text("New Notices", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color(0xFF1A1A2E))
         }
-        Text("View All >", color = NavyBlue, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(
+            "View All >",
+            color = NavyBlue,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.clickable { onViewAll() }
+        )
     }
     Spacer(Modifier.height(12.dp))
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F4FF)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
+    if (notice != null) {
+        val dateFormatted = remember(notice.publishedAt) {
+            if (notice.publishedAt > 0L) {
+                val sdf = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
+                sdf.format(java.util.Date(notice.publishedAt))
+            } else ""
+        }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F4FF)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(NavyBlue)
-            )
             Row(
-                modifier = Modifier.padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFDDE3FF)),
-                    contentAlignment = Alignment.Center
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(NavyBlue)
+                )
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Outlined.NotificationsNone, null, tint = NavyBlue, modifier = Modifier.size(22.dp))
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Scheduled Maintenance - Water Supply",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                        color = Color(0xFF1A1A2E)
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Water supply will be interrupted on March 5, 2026, from 10:00 AM to 2:00 PM for maintenance work in Block A.",
-                        fontSize = 12.sp,
-                        color = Color(0xFF555555)
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text("Mar 4, 2026", fontSize = 11.sp, color = Color(0xFF999999))
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFDDE3FF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.NotificationsNone, null, tint = NavyBlue, modifier = Modifier.size(22.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            notice.title,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            color = Color(0xFF1A1A2E),
+                            maxLines = 2
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            notice.description,
+                            fontSize = 12.sp,
+                            color = Color(0xFF555555),
+                            maxLines = 3
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(dateFormatted, fontSize = 11.sp, color = Color(0xFF999999))
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun RecentActivitiesSection() {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.ShowChart, null, tint = NavyBlue, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
-        Text("Recent Activities", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color(0xFF1A1A2E))
-    }
-    Spacer(Modifier.height(12.dp))
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            ActivityRow("AC Not Working - A-304", "2 hours ago", "In Progress")
-            HorizontalDivider(color = Color(0xFFF0F0F0))
-            ActivityRow("Plumbing Issue - A-304", "1 day ago", "Assigned")
-            HorizontalDivider(color = Color(0xFFF0F0F0))
-            ActivityRow("Positive feedback submitted", "2 days ago", "Closed")
+    } else {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Text(
+                "No new notices",
+                fontSize = 14.sp,
+                color = Color(0xFF999999),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 20.dp),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
 
-@Composable
-private fun ActivityRow(title: String, time: String, status: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1A1A2E))
-            Spacer(Modifier.height(2.dp))
-            Text(time, fontSize = 12.sp, color = Color(0xFF999999))
-        }
-        Spacer(Modifier.width(8.dp))
-        StatusBadge(status)
+private fun daysOpen(dateMillis: Long): String {
+    val days = (System.currentTimeMillis() - dateMillis) / (1000L * 60 * 60 * 24)
+    return when {
+        days <= 0L -> "Today"
+        days == 1L -> "1d open"
+        else -> "${days}d open"
     }
 }
 
 @Composable
-private fun OngoingComplaintsSection() {
+private fun OngoingComplaintsSection(complaints: List<Complaint>, onViewAll: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -769,27 +786,36 @@ private fun OngoingComplaintsSection() {
             Spacer(Modifier.width(6.dp))
             Text("Ongoing Complaints", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color(0xFF1A1A2E))
         }
-        Text("View All >", color = NavyBlue, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(
+            "View All >",
+            color = NavyBlue,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.clickable { onViewAll() }
+        )
     }
     Spacer(Modifier.height(12.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        ComplaintCard(
-            timeOpen = "2d open",
-            title = "AC Not Working",
-            category = "Electrical",
-            status = "In Progress",
-            modifier = Modifier.weight(1f)
-        )
-        ComplaintCard(
-            timeOpen = "1d open",
-            title = "Plumbing Issue",
-            category = "Plumbing",
-            status = "Pending",
-            modifier = Modifier.weight(1f)
-        )
+    if (complaints.isEmpty()) {
+        Text("No ongoing complaints", fontSize = 13.sp, color = Color(0xFF999999))
+    } else {
+        complaints.chunked(2).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                row.forEach { complaint ->
+                    ComplaintCard(
+                        timeOpen = daysOpen(complaint.date),
+                        title = complaint.problem.ifEmpty { complaint.category },
+                        category = complaint.category,
+                        status = complaint.status,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(12.dp))
+        }
     }
 }
 
@@ -828,8 +854,8 @@ private fun StatusBadge(status: String) {
     val (bg, fg) = when (status) {
         "In Progress" -> Color(0xFFEEF2FF) to Color(0xFF3B4FD8)
         "Assigned" -> Color(0xFFF5EEFF) to Color(0xFF7C3AED)
-        "Closed" -> Color(0xFFECFDF5) to Color(0xFF059669)
-        "Pending" -> Color(0xFFFFF7ED) to Color(0xFFD97706)
+        "Closed", "CLOSED" -> Color(0xFFECFDF5) to Color(0xFF059669)
+        "Pending", "OPEN" -> Color(0xFFFFF7ED) to Color(0xFFD97706)
         else -> Color(0xFFF5F5F5) to Color(0xFF616161)
     }
     Box(

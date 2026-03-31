@@ -4,6 +4,17 @@ import AVKit
 import AVFoundation
 import Lottie
 
+// MARK: - Navigation Route
+
+enum ComplaintsRoute: Hashable {
+    case selectCategory([ComplaintTemplate])
+    case submitForm([ComplaintTemplate], ComplaintTemplate)
+    case viewComplaints([Complaint])
+    case complaintDetail(Complaint, [Complaint])
+}
+
+// MARK: - ComplaintsView
+
 struct ComplaintsView: View {
     let occupantName: String
     let occupantEmail: String
@@ -13,13 +24,25 @@ struct ComplaintsView: View {
     let onMenuTap: () -> Void
 
     @StateObject private var viewModel = ComplaintsViewModel()
+    @State private var path: [ComplaintsRoute] = []
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
     private let bgGray = Color(red: 0.949, green: 0.957, blue: 0.973)
 
-    var body: some View {
+    private var isLoading: Bool {
         switch viewModel.state {
-        case .landing:
+        case .loadingTemplates, .loadingComplaints: return true
+        default: return false
+        }
+    }
+
+    private var isSubmitting: Bool {
+        if case .submitting = viewModel.state { return true }
+        return false
+    }
+
+    var body: some View {
+        NavigationStack(path: $path) {
             ComplaintsLandingView(
                 navyBlue: navyBlue,
                 bgGray: bgGray,
@@ -27,104 +50,96 @@ struct ComplaintsView: View {
                 onAddComplaint: { viewModel.onAddComplaintTapped() },
                 onViewComplaints: { viewModel.onViewComplaintsTapped(occupantId: occupantDocId) }
             )
-
-        case .loadingTemplates:
-            Color(red: 0.949, green: 0.957, blue: 0.973)
-                .ignoresSafeArea()
-                .overlay {
-                    ProgressView().tint(navyBlue)
+            .overlay {
+                if isLoading {
+                    Color.black.opacity(0.25).ignoresSafeArea()
+                        .overlay { ProgressView().tint(.white) }
                 }
-
-        case .selectCategory(let templates):
-            CategorySelectionView(
-                navyBlue: navyBlue,
-                bgGray: bgGray,
-                templates: templates,
-                onBack: { viewModel.onBackFromCategory() },
-                onSelect: { viewModel.onCategorySelected($0) }
-            )
-
-        case .submitForm(_, let template):
-            SubmitComplaintFormView(
-                navyBlue: navyBlue,
-                bgGray: bgGray,
-                template: template,
-                isSubmitting: false,
-                onBack: { viewModel.onBackFromForm() },
-                onSubmit: { problem, description, priority, images, videoURLs in
-                    viewModel.submitComplaint(
-                        problem: problem,
-                        description: description,
-                        priority: priority,
-                        occupantName: occupantName,
-                        occupantEmail: occupantEmail,
-                        occupantDocId: occupantDocId,
-                        flatNumber: flatNumber,
-                        flatId: flatId,
-                        images: images,
-                        videoURLs: videoURLs
+                if case .success = viewModel.state {
+                    ComplaintSuccessDialog(onDismiss: { viewModel.dismissSuccess() })
+                }
+                if case .error(let message) = viewModel.state {
+                    ComplaintErrorDialog(message: message, onDismiss: { viewModel.dismissError() })
+                }
+            }
+            .navigationBarHidden(true)
+            .navigationDestination(for: ComplaintsRoute.self) { route in
+                switch route {
+                case .selectCategory(let templates):
+                    CategorySelectionView(
+                        navyBlue: navyBlue,
+                        bgGray: bgGray,
+                        templates: templates,
+                        onBack: { viewModel.onBackFromCategory() },
+                        onSelect: { viewModel.onCategorySelected($0) }
                     )
+                    .navigationBarHidden(true)
+
+                case .submitForm(_, let template):
+                    SubmitComplaintFormView(
+                        navyBlue: navyBlue,
+                        bgGray: bgGray,
+                        template: template,
+                        isSubmitting: isSubmitting,
+                        onBack: { viewModel.onBackFromForm() },
+                        onSubmit: { problem, description, priority, images, videoURLs in
+                            viewModel.submitComplaint(
+                                problem: problem,
+                                description: description,
+                                priority: priority,
+                                occupantName: occupantName,
+                                occupantEmail: occupantEmail,
+                                occupantDocId: occupantDocId,
+                                flatNumber: flatNumber,
+                                flatId: flatId,
+                                images: images,
+                                videoURLs: videoURLs
+                            )
+                        }
+                    )
+                    .navigationBarHidden(true)
+
+                case .viewComplaints(let complaints):
+                    ViewComplaintsView(
+                        navyBlue: navyBlue,
+                        bgGray: bgGray,
+                        complaints: complaints,
+                        onBack: { viewModel.onBackFromComplaints() },
+                        onComplaintTap: { viewModel.onComplaintSelected($0) }
+                    )
+                    .navigationBarHidden(true)
+
+                case .complaintDetail(let complaint, _):
+                    ComplaintDetailView(
+                        navyBlue: navyBlue,
+                        complaint: complaint,
+                        occupantId: occupantDocId,
+                        onBack: { viewModel.onBackFromDetail() },
+                        onClose: { id, oId in viewModel.closeComplaint(id: id, occupantId: oId) }
+                    )
+                    .navigationBarHidden(true)
                 }
-            )
-
-        case .submitting(let template):
-            SubmitComplaintFormView(
-                navyBlue: navyBlue,
-                bgGray: bgGray,
-                template: template,
-                isSubmitting: true,
-                onBack: {},
-                onSubmit: { _, _, _, _, _ in }
-            )
-
-        case .success:
-            ComplaintsLandingView(
-                navyBlue: navyBlue,
-                bgGray: bgGray,
-                onMenuTap: onMenuTap,
-                onAddComplaint: {},
-                onViewComplaints: { viewModel.onViewComplaintsTapped(occupantId: occupantDocId) }
-            )
-            .overlay {
-                ComplaintSuccessDialog(onDismiss: { viewModel.dismissSuccess() })
             }
+        }
+        .onChange(of: viewModel.state) { newState in
+            syncPath(with: newState)
+        }
+    }
 
-        case .error(let message):
-            ComplaintsLandingView(
-                navyBlue: navyBlue,
-                bgGray: bgGray,
-                onMenuTap: onMenuTap,
-                onAddComplaint: { viewModel.onAddComplaintTapped() },
-                onViewComplaints: { viewModel.onViewComplaintsTapped(occupantId: occupantDocId) }
-            )
-            .overlay {
-                ComplaintErrorDialog(message: message, onDismiss: { viewModel.dismissError() })
-            }
-
-        case .loadingComplaints:
-            Color(red: 0.949, green: 0.957, blue: 0.973)
-                .ignoresSafeArea()
-                .overlay {
-                    ProgressView().tint(navyBlue)
-                }
-
+    private func syncPath(with state: ComplaintsViewModel.State) {
+        switch state {
+        case .landing, .success, .error:
+            path = []
+        case .loadingTemplates, .loadingComplaints, .submitting:
+            break // keep current path; loading shown as overlay on root
+        case .selectCategory(let templates):
+            path = [.selectCategory(templates)]
+        case .submitForm(let templates, let template):
+            path = [.selectCategory(templates), .submitForm(templates, template)]
         case .viewComplaints(let complaints):
-            ViewComplaintsView(
-                navyBlue: navyBlue,
-                bgGray: bgGray,
-                complaints: complaints,
-                onBack: { viewModel.onBackFromComplaints() },
-                onComplaintTap: { viewModel.onComplaintSelected($0) }
-            )
-
-        case .complaintDetail(let complaint, _):
-            ComplaintDetailView(
-                navyBlue: navyBlue,
-                complaint: complaint,
-                occupantId: occupantDocId,
-                onBack: { viewModel.onBackFromDetail() },
-                onClose: { id, oId in viewModel.closeComplaint(id: id, occupantId: oId) }
-            )
+            path = [.viewComplaints(complaints)]
+        case .complaintDetail(let complaint, let complaints):
+            path = [.viewComplaints(complaints), .complaintDetail(complaint, complaints)]
         }
     }
 }

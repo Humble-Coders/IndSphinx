@@ -1,7 +1,7 @@
 import Foundation
 import FirebaseFirestore
 
-struct Complaint: Identifiable {
+struct Complaint: Identifiable, Hashable {
     let id: String
     let flatNumber: String
     let flatId: String
@@ -89,5 +89,38 @@ class BackendComplaintRepository {
 
     func closeComplaint(id: String) async throws {
         try await db.collection("Complaints").document(id).updateData(["Status": "CLOSED"])
+    }
+
+    func observeByOccupant(occupantId: String, onChange: @escaping ([Complaint]) -> Void) -> ListenerRegistration {
+        return db.collection("Complaints")
+            .whereField("OccupantId", isEqualTo: occupantId)
+            .order(by: "Date", descending: true)
+            .addSnapshotListener { snapshot, _ in
+                guard let snapshot = snapshot else { onChange([]); return }
+                let complaints: [Complaint] = snapshot.documents.compactMap { doc in
+                    let data = doc.data()
+                    guard let category = data["Category"] as? String else { return nil }
+                    let date = (data["Date"] as? Timestamp)?.dateValue() ?? Date()
+                    let resolveDate = (data["ResolveDate"] as? Timestamp)?.dateValue()
+                    return Complaint(
+                        id: doc.documentID,
+                        flatNumber: data["FlatNumber"] as? String ?? "",
+                        flatId: data["flatId"] as? String ?? "",
+                        category: category,
+                        date: date,
+                        status: data["Status"] as? String ?? "OPEN",
+                        resolveDate: resolveDate,
+                        priority: data["Priority"] as? String ?? "",
+                        description: data["Description"] as? String ?? "",
+                        problem: data["Problem"] as? String ?? "",
+                        mediaUrls: data["MediaUrls"] as? [String] ?? [],
+                        workerName: data["WorkerName"] as? String ?? "",
+                        workerRemarks: data["WorkerRemarks"] as? String ?? "",
+                        workerMedia: data["WorkerMedia"] as? [String] ?? [],
+                        occupantId: data["OccupantId"] as? String ?? ""
+                    )
+                }
+                onChange(complaints)
+            }
     }
 }
