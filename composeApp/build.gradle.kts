@@ -26,6 +26,7 @@ kotlin {
             implementation(libs.firebase.auth)
             implementation(libs.firebase.storage)
             implementation(libs.firebase.firestore)
+            implementation("com.github.AbedElazizShe:LightCompressor:1.3.3")
             implementation("com.google.firebase:firebase-messaging-ktx:24.1.1")
             implementation(libs.datastore.preferences)
             implementation(("com.google.firebase:firebase-bom:34.9.0"))

@@ -4,9 +4,15 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.abedelazizshe.lightcompressorlibrary.CompressionListener
+import com.abedelazizshe.lightcompressorlibrary.VideoCompressor
+import com.abedelazizshe.lightcompressorlibrary.VideoQuality
+import com.abedelazizshe.lightcompressorlibrary.config.AppSpecificStorageConfiguration
+import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.humblesolutions.indsphinx.model.Complaint
 import com.humblesolutions.indsphinx.model.ComplaintTemplate
 import com.humblesolutions.indsphinx.repository.BackendComplaintRepository
@@ -14,6 +20,7 @@ import com.humblesolutions.indsphinx.repository.BackendComplaintTemplateReposito
 import com.humblesolutions.indsphinx.repository.BackendStorageRepository
 import com.humblesolutions.indsphinx.usecase.FetchComplaintTemplatesUseCase
 import com.humblesolutions.indsphinx.usecase.SubmitComplaintUseCase
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -91,15 +98,15 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
                 val context = getApplication<Application>()
                 val uploadId = BackendStorageRepository.generateUploadId()
 
-                // Upload all files in parallel
+                // Upload all files in parallel (with compression)
                 val mediaUrls = coroutineScope {
                     mediaUris.mapIndexed { index, uri ->
                         async(Dispatchers.IO) {
                             val ext = BackendStorageRepository.extensionForUri(uri, context)
-                            val uploadUri = if (ext == "jpg") {
-                                compressImageUri(uri) ?: uri
-                            } else {
-                                uri
+                            val uploadUri = when (ext) {
+                                "jpg" -> compressImageUri(uri) ?: uri
+                                "mp4" -> compressVideoUri(uri, index)
+                                else -> uri
                             }
                             storageRepo.uploadFile(uploadUri, context, "complaints/$uploadId/$index.$ext")
                         }
@@ -164,6 +171,62 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    /**
+     * Compresses video using LightCompressor (MEDIUM quality, native MediaCodec).
+     * Typical 50-80 MB video → 5-15 MB (5-10× smaller), much faster upload.
+     * Falls back to original URI on any failure.
+     */
+    private suspend fun compressVideoUri(uri: Uri, index: Int): Uri {
+        val context = getApplication<Application>()
+        val originalSize = context.contentResolver.openFileDescriptor(uri, "r")?.statSize ?: 0L
+
+        // Skip compression for videos under 50MB — not worth the time
+        if (originalSize < 80 * 1024 * 1024) {
+            Log.d("VideoCompressor", "[$index] Skipping compression (${originalSize / 1024} KB < 50MB), uploading original")
+            return uri
+        }
+
+        Log.d("VideoCompressor", "[$index] Compressing large video (${originalSize / 1024 / 1024} MB)")
+        val deferred = CompletableDeferred<Uri>()
+        val startTime = System.currentTimeMillis()
+
+        VideoCompressor.start(
+            context = context,
+            uris = listOf(uri),
+            isStreamable = true,
+            storageConfiguration = AppSpecificStorageConfiguration(subFolderName = "compressed_videos"),
+            configureWith = Configuration(
+                quality = VideoQuality.MEDIUM,
+                isMinBitrateCheckEnabled = false,
+                keepOriginalResolution = false,
+                videoNames = listOf("compressed_$index.mp4")
+            ),
+            listener = object : CompressionListener {
+                override fun onSuccess(index: Int, size: Long, path: String?) {
+                    val elapsed = System.currentTimeMillis() - startTime
+                    if (path != null) {
+                        val finalPath = if (path.endsWith("_temp")) path.removeSuffix("_temp") else path
+                        val file = File(finalPath)
+                        if (file.exists()) {
+                            Log.d("VideoCompressor", "[$index] Compressed: ${file.length() / 1024} KB | Time: ${elapsed}ms")
+                            deferred.complete(Uri.fromFile(file))
+                        } else {
+                            Log.w("VideoCompressor", "[$index] File not found, falling back")
+                            deferred.complete(uri)
+                        }
+                    } else {
+                        deferred.complete(uri)
+                    }
+                }
+                override fun onFailure(index: Int, failureMessage: String) { deferred.complete(uri) }
+                override fun onCancelled(index: Int) { deferred.complete(uri) }
+                override fun onProgress(index: Int, percent: Float) {}
+                override fun onStart(index: Int) {}
+            }
+        )
+
+        return deferred.await()
+    }
     fun dismissSuccess() {
         _uiState.value = ComplaintsUiState.Landing
     }

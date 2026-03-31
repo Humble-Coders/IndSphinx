@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import AVFoundation
 
 @MainActor
 class ComplaintsViewModel: ObservableObject {
@@ -83,8 +84,9 @@ class ComplaintsViewModel: ObservableObject {
                     for (index, videoURL) in videoURLs.enumerated() {
                         let slot = images.count + index
                         group.addTask {
+                            let compressed = await self.compressVideo(url: videoURL)
                             let path = "complaints/\(uploadId)/video_\(index).mp4"
-                            let url = try await storageRepo.uploadFile(from: videoURL, path: path)
+                            let url = try await storageRepo.uploadFile(from: compressed, path: path)
                             return (slot, url)
                         }
                     }
@@ -112,6 +114,41 @@ class ComplaintsViewModel: ObservableObject {
                 state = .success
             } catch {
                 state = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    /**
+     * Compresses video using AVAssetExportSession (MEDIUM quality preset).
+     * Typical 50-80 MB video → 5-15 MB (5-10× smaller), much faster upload.
+     * Falls back to the original URL on any failure.
+     */
+    private func compressVideo(url: URL) async -> URL {
+        // Skip compression for videos under 50MB
+        let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        if fileSize < 50 * 1024 * 1024 {
+            return url
+        }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + "_compressed.mp4")
+
+        guard let session = AVAssetExportSession(
+            asset: AVURLAsset(url: url),
+            presetName: AVAssetExportPresetMediumQuality
+        ) else { return url }
+
+        session.outputURL = outputURL
+        session.outputFileType = .mp4
+        session.shouldOptimizeForNetworkUse = true
+
+        return await withCheckedContinuation { continuation in
+            session.exportAsynchronously {
+                if session.status == .completed {
+                    continuation.resume(returning: outputURL)
+                } else {
+                    continuation.resume(returning: url)
+                }
             }
         }
     }

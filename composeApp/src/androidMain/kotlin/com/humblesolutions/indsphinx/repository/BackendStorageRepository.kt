@@ -11,7 +11,13 @@ class BackendStorageRepository {
 
     suspend fun uploadFile(uri: Uri, context: Context, uploadPath: String): String {
         val ref = storage.reference.child(uploadPath)
-        ref.putFile(uri).await()
+        if (uri.scheme == "file") {
+            context.contentResolver.openInputStream(uri)!!.use { stream ->
+                ref.putStream(stream).await()
+            }
+        } else {
+            ref.putFile(uri).await()
+        }
         return ref.downloadUrl.await().toString()
     }
 
