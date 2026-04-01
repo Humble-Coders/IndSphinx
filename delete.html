@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Delete Account – IndSphinx</title>
+    <style>
+        :root {
+          --primary: #1a73e8;
+          --danger: #d93025;
+          --danger-light: #fce8e6;
+          --danger-border: #f5c6c2;
+          --text: #212121;
+          --muted: #666;
+          --border: #e0e0e0;
+          --bg: #fafafa;
+          --card-bg: #ffffff;
+          --max-width: 760px;
+          --radius: 8px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          background: var(--bg);
+          color: var(--text);
+          line-height: 1.7;
+          padding: 2rem 1rem;
+        }
+
+        .container {
+          max-width: var(--max-width);
+          margin: 0 auto;
+          background: var(--card-bg);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          padding: 2.5rem;
+        }
+
+        header {
+          border-bottom: 1px solid var(--border);
+          padding-bottom: 1.5rem;
+          margin-bottom: 2rem;
+        }
+
+        header h1 {
+          font-size: 1.75rem;
+          font-weight: 700;
+          color: var(--danger);
+        }
+
+        header p {
+          color: var(--muted);
+          font-size: 0.9rem;
+          margin-top: 0.4rem;
+        }
+
+        .warning-box {
+          background: var(--danger-light);
+          border: 1px solid var(--danger-border);
+          border-radius: var(--radius);
+          padding: 1rem 1.25rem;
+          margin-bottom: 2rem;
+          font-size: 0.9rem;
+          color: #700;
+        }
+
+        .warning-box ul {
+          padding-left: 1.2rem;
+          margin-top: 0.4rem;
+        }
+
+        .warning-box li {
+          margin-bottom: 0.2rem;
+        }
+
+        label {
+          display: block;
+          font-size: 0.9rem;
+          font-weight: 600;
+          margin-bottom: 0.4rem;
+          color: var(--text);
+        }
+
+        input[type="email"] {
+          width: 100%;
+          padding: 0.65rem 0.9rem;
+          font-size: 0.95rem;
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          outline: none;
+          transition: border-color 0.2s;
+          background: #fff;
+          color: var(--text);
+        }
+
+        input[type="email"]:focus {
+          border-color: var(--danger);
+        }
+
+        .field {
+          margin-bottom: 1.25rem;
+        }
+
+        .field-hint {
+          font-size: 0.8rem;
+          color: var(--muted);
+          margin-top: 0.3rem;
+        }
+
+        .checkbox-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.6rem;
+          margin-bottom: 1.5rem;
+          font-size: 0.88rem;
+          color: var(--muted);
+        }
+
+        .checkbox-row input[type="checkbox"] {
+          margin-top: 3px;
+          flex-shrink: 0;
+          accent-color: var(--danger);
+        }
+
+        button[type="submit"] {
+          display: inline-block;
+          padding: 0.7rem 1.6rem;
+          background: var(--danger);
+          color: #fff;
+          font-size: 0.95rem;
+          font-weight: 600;
+          border: none;
+          border-radius: var(--radius);
+          cursor: pointer;
+          transition: background 0.2s, opacity 0.2s;
+        }
+
+        button[type="submit"]:hover:not(:disabled) {
+          background: #b31b0e;
+        }
+
+        button[type="submit"]:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .success-msg {
+          display: none;
+          background: #e6f4ea;
+          border: 1px solid #a8d5b5;
+          border-radius: var(--radius);
+          padding: 1rem 1.25rem;
+          color: #1e4d2b;
+          font-size: 0.9rem;
+          margin-top: 1rem;
+        }
+
+        .error-msg {
+          display: none;
+          background: var(--danger-light);
+          border: 1px solid var(--danger-border);
+          border-radius: var(--radius);
+          padding: 1rem 1.25rem;
+          color: #700;
+          font-size: 0.9rem;
+          margin-top: 1rem;
+        }
+
+        a { color: var(--primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        footer {
+          border-top: 1px solid var(--border);
+          padding-top: 1.2rem;
+          margin-top: 2rem;
+          font-size: 0.85rem;
+          color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Delete My Account</h1>
+        <p>App: IndSphinx &nbsp;|&nbsp; Developer: Humble Solutions</p>
+    </header>
+
+    <div class="warning-box">
+        <strong>Before you proceed, please note:</strong>
+        <ul>
+            <li>Your account and all associated data will be permanently deleted.</li>
+            <li>Submitted complaints, visitor passes, and feedback will be removed.</li>
+            <li>This action cannot be undone.</li>
+            <li>Deletion is processed within 7 business days of your request.</li>
+        </ul>
+    </div>
+
+    <div class="field">
+        <label for="email">Registered Email Address</label>
+        <input type="email" id="email" placeholder="you@example.com" required />
+        <p class="field-hint">Enter the email address linked to your IndSphinx account.</p>
+    </div>
+
+    <div class="checkbox-row">
+        <input type="checkbox" id="confirm" />
+        <label for="confirm" style="font-weight:400; margin-bottom:0;">
+            I understand that this request will permanently delete my account and all associated data.
+        </label>
+    </div>
+
+    <button type="submit" id="submitBtn" disabled>Submit Deletion Request</button>
+
+    <div class="success-msg" id="successMsg">
+        ✅ Your deletion request has been submitted. We will process it within 7 business days and notify you at the provided email address.
+    </div>
+
+    <div class="error-msg" id="errorMsg">
+        ❌ <span id="errorText">Something went wrong. Please try again or contact executives@humblesolutions.in</span>
+    </div>
+
+    <footer>
+        &copy; 2025 Humble Solutions. All rights reserved. &nbsp;|&nbsp;
+        <a href="mailto:executives@humblesolutions.in">executives@humblesolutions.in</a>
+    </footer>
+</div>
+
+<!-- Firebase SDKs -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCgbd7yF_xCoGJEF59kRs1REO5QnB2Qtac",
+      authDomain: "ind-sphinx.firebaseapp.com",
+      projectId: "ind-sphinx",
+      storageBucket: "ind-sphinx.firebasestorage.app",
+      messagingSenderId: "297429261848",
+      appId: "1:297429261848:web:9406b0472f9a69571ced6d",
+      measurementId: "G-LJZC7TZ3D9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const emailInput = document.getElementById("email");
+    const confirmCheckbox = document.getElementById("confirm");
+    const submitBtn = document.getElementById("submitBtn");
+    const successMsg = document.getElementById("successMsg");
+    const errorMsg = document.getElementById("errorMsg");
+    const errorText = document.getElementById("errorText");
+
+    function updateBtnState() {
+      const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.value.trim());
+      submitBtn.disabled = !(validEmail && confirmCheckbox.checked);
+    }
+
+    emailInput.addEventListener("input", updateBtnState);
+    confirmCheckbox.addEventListener("change", updateBtnState);
+
+    submitBtn.addEventListener("click", async () => {
+      const email = emailInput.value.trim().toLowerCase();
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Submitting…";
+      successMsg.style.display = "none";
+      errorMsg.style.display = "none";
+
+      try {
+        await addDoc(collection(db, "account_deletion_requests"), {
+          email,
+          app: "IndSphinx",
+          status: "pending",
+          requestedAt: serverTimestamp()
+        });
+
+        successMsg.style.display = "block";
+        emailInput.value = "";
+        confirmCheckbox.checked = false;
+      } catch (err) {
+        errorText.textContent = err.message || "Something went wrong. Please try again or contact executives@humblesolutions.in";
+        errorMsg.style.display = "block";
+        submitBtn.disabled = false;
+      }
+
+      submitBtn.textContent = "Submit Deletion Request";
+    });
+</script>
+</body>
+</html>
