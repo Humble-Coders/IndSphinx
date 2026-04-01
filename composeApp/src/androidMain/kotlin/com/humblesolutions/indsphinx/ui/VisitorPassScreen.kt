@@ -1,5 +1,6 @@
 package com.humblesolutions.indsphinx.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -100,12 +101,13 @@ fun VisitorPassScreen(
                 VisitorPassHeader(title = "Visitor Pass", onBack = onBack)
                 PassListContent(
                     passes = state.passes,
-                    onRequestTapped = { viewModel.onRequestPassTapped() },
+                    onRequestTapped = { viewModel.onRequestPassTapped(flatId) },
                     onPassSelected = { viewModel.onPassSelected(it) }
                 )
             }
         }
         is VisitorPassUiState.RequestForm -> {
+            BackHandler { viewModel.onBackFromForm() }
             Column(Modifier.fillMaxSize()) {
                 VisitorPassHeader(
                     title = "Visitor Entry",
@@ -139,6 +141,7 @@ fun VisitorPassScreen(
             }
         }
         is VisitorPassUiState.PassDetail -> {
+            BackHandler { viewModel.onBackFromDetail() }
             Column(Modifier.fillMaxSize()) {
                 VisitorPassHeader(title = "Pass Details", onBack = { viewModel.onBackFromDetail() })
                 PassDetailContent(pass = state.pass)

@@ -15,6 +15,14 @@ class BackendUserProfileRepository : UserProfileRepository {
         return userDoc.getBoolean("Enabled") ?: false
     }
 
+    fun observeOccupant(occupantDocId: String): Flow<Map<String, Any>?> = callbackFlow {
+        val registration = db.collection("Occupants").document(occupantDocId)
+            .addSnapshotListener { snapshot, _ ->
+                trySend(snapshot?.data)
+            }
+        awaitClose { registration.remove() }
+    }
+
     fun observeIsEnabled(uid: String): Flow<Boolean> = callbackFlow {
         val registration = db.collection("Users").document(uid)
             .addSnapshotListener { snapshot, _ ->

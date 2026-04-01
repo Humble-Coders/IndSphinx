@@ -41,7 +41,11 @@ class VisitorPassViewModel: ObservableObject {
         listenerRegistration?.remove()
     }
 
-    func onRequestPassTapped() {
+    func onRequestPassTapped(flatId: String) {
+        guard !flatId.isEmpty else {
+            state = .error("No flat allotted. Please contact admin.", currentPasses())
+            return
+        }
         state = .requestForm(currentPasses())
     }
 

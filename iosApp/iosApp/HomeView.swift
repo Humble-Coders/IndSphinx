@@ -9,6 +9,9 @@ struct HomeView: View {
     @State private var ongoingComplaints: [Complaint] = []
     @State private var showVisitorPass = false
     @State private var showFeedback = false
+    @State private var pendingComplaintAction: ComplaintStartAction? = nil
+    @State private var pendingNotice: Notice? = nil
+    @State private var showLogoutConfirmation = false
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
     private let backgroundGray = Color(red: 0.949, green: 0.957, blue: 0.973)
@@ -30,12 +33,15 @@ struct HomeView: View {
                         name: ready?.name ?? "",
                         greeting: ready?.greeting ?? "",
                         flatNumber: ready?.flatNumber ?? "",
-                        onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true } }
+                        onMenuTap: { isDrawerOpen = true }
                     )
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 20) {
                             QuickShortcutsSection(
-                                onAddComplaint: { selectedTab = 1 },
+                                onAddComplaint: {
+                                    pendingComplaintAction = ComplaintStartAction(kind: .addComplaint(flatId: ready?.flatId ?? ""))
+                                    selectedTab = 1
+                                },
                                 onNoticeboard: { selectedTab = 2 },
                                 onVisitorPass: { showVisitorPass = true },
                                 onFeedback: { showFeedback = true }
@@ -43,12 +49,23 @@ struct HomeView: View {
                             NewNoticesSection(
                                 navyBlue: navyBlue,
                                 notice: viewModel.latestNotice,
-                                onViewAll: { selectedTab = 2 }
+                                onViewAll: { selectedTab = 2 },
+                                onNoticeTap: { notice in
+                                    pendingNotice = notice
+                                    selectedTab = 2
+                                }
                             )
                             OngoingComplaintsSection(
                                 complaints: ongoingComplaints,
                                 navyBlue: navyBlue,
-                                onViewAll: { selectedTab = 1 }
+                                onViewAll: {
+                                    pendingComplaintAction = ComplaintStartAction(kind: .viewComplaints(occupantId: ready?.occupantDocId ?? ""))
+                                    selectedTab = 1
+                                },
+                                onComplaintTap: { complaint in
+                                    pendingComplaintAction = ComplaintStartAction(kind: .openComplaint(complaint: complaint, occupantId: ready?.occupantDocId ?? ""))
+                                    selectedTab = 1
+                                }
                             )
                         }
                         .padding(.horizontal, 16)
@@ -76,14 +93,16 @@ struct HomeView: View {
                     occupantDocId: ready?.occupantDocId ?? "",
                     flatNumber: ready?.flatNumber ?? "",
                     flatId: ready?.flatId ?? "",
-                    onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true } }
+                    onMenuTap: { isDrawerOpen = true },
+                    startAction: pendingComplaintAction
                 )
                 .tabItem { Label("Complaints", systemImage: "doc.text") }
                 .tag(1)
 
                 // Noticeboard Tab
                 NoticeboardView(
-                    onMenuTap: { withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true } }
+                    onMenuTap: { isDrawerOpen = true },
+                    initialNotice: pendingNotice
                 )
                 .tabItem { Label("Noticeboard", systemImage: "bell") }
                 .tag(2)
@@ -99,10 +118,7 @@ struct HomeView: View {
                     flatNumber: ready?.flatNumber ?? "",
                     occupantFrom: ready?.occupantFrom,
                     isCoordinator: ready?.isCoordinator ?? false,
-                    onSignOut: {
-                        viewModel.signOut()
-                        onSignOut()
-                    }
+                    onSignOut: { showLogoutConfirmation = true }
                 )
                 .tabItem { Label("Profile", systemImage: "person") }
                 .tag(3)
@@ -110,49 +126,55 @@ struct HomeView: View {
             .tint(navyBlue)
 
             // Scrim
-            if isDrawerOpen {
-                Color.black.opacity(0.35)
-                    .ignoresSafeArea()
-                    .onTapGesture { withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false } }
-            }
+            Color.black.opacity(isDrawerOpen ? 0.35 : 0)
+                .ignoresSafeArea()
+                .allowsHitTesting(isDrawerOpen)
+                .onTapGesture { withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false } }
 
             // Side Drawer
-            if isDrawerOpen {
-                DrawerContentView(
-                    navyBlue: navyBlue,
-                    name: ready?.name ?? "",
-                    email: ready?.email ?? "",
-                    role: ready?.role ?? "",
-                    flatNumber: ready?.flatNumber ?? "",
-                    onClose: { withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false } },
-                    onNavigateToComplaints: {
-                        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false }
-                        selectedTab = 1
-                    },
-                    onNavigateToVisitorPass: {
-                        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false }
-                        showVisitorPass = true
-                    },
-                    onNavigateToFeedback: {
-                        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false }
-                        showFeedback = true
-                    },
-                    onNavigateToNoticeboard: {
-                        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false }
-                        selectedTab = 2
-                    },
-                    onSignOut: {
-                        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false }
-                        viewModel.signOut()
-                        onSignOut()
-                    }
-                )
-                .frame(width: 300)
-                .transition(.move(edge: .leading))
-            }
+            DrawerContentView(
+                navyBlue: navyBlue,
+                name: ready?.name ?? "",
+                email: ready?.email ?? "",
+                role: ready?.role ?? "",
+                flatNumber: ready?.flatNumber ?? "",
+                onClose: { withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false } },
+                onNavigateToComplaints: {
+                    withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
+                    selectedTab = 1
+                },
+                onNavigateToVisitorPass: {
+                    withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
+                    showVisitorPass = true
+                },
+                onNavigateToFeedback: {
+                    withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
+                    showFeedback = true
+                },
+                onNavigateToNoticeboard: {
+                    withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
+                    selectedTab = 2
+                },
+                onSignOut: {
+                    withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
+                    showLogoutConfirmation = true
+                }
+            )
+            .frame(width: 300)
+            .offset(x: isDrawerOpen ? 0 : -300)
+            .animation(.easeInOut(duration: 0.28), value: isDrawerOpen)
         }
         .onChange(of: viewModel.shouldSignOut) { denied in
             if denied { onSignOut() }
+        }
+        .alert("Log Out", isPresented: $showLogoutConfirmation) {
+            Button("Log Out", role: .destructive) {
+                viewModel.signOut()
+                onSignOut()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to log out?")
         }
         .fullScreenCover(isPresented: $showVisitorPass) {
             VisitorPassView(
@@ -211,14 +233,6 @@ private struct HomeHeaderView: View {
 
             Spacer()
 
-            Circle()
-                .fill(.white.opacity(0.2))
-                .frame(width: 52, height: 52)
-                .overlay {
-                    Image(systemName: "person")
-                        .font(.system(size: 24))
-                        .foregroundColor(.white)
-                }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
@@ -568,6 +582,7 @@ private struct NewNoticesSection: View {
     let navyBlue: Color
     let notice: Notice?
     let onViewAll: () -> Void
+    var onNoticeTap: (Notice) -> Void = { _ in }
 
     private func formatted(_ date: Date) -> String {
         let fmt = DateFormatter()
@@ -595,40 +610,43 @@ private struct NewNoticesSection: View {
             }
 
             if let notice {
-                HStack(spacing: 0) {
-                    Rectangle()
-                        .fill(navyBlue)
-                        .frame(width: 4)
-                        .cornerRadius(2)
+                Button(action: { onNoticeTap(notice) }) {
+                    HStack(spacing: 0) {
+                        Rectangle()
+                            .fill(navyBlue)
+                            .frame(width: 4)
+                            .cornerRadius(2)
 
-                    HStack(spacing: 12) {
-                        Circle()
-                            .fill(Color(red: 0.867, green: 0.89, blue: 1.0))
-                            .frame(width: 42, height: 42)
-                            .overlay {
-                                Image(systemName: "bell")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(navyBlue)
+                        HStack(spacing: 12) {
+                            Circle()
+                                .fill(Color(red: 0.867, green: 0.89, blue: 1.0))
+                                .frame(width: 42, height: 42)
+                                .overlay {
+                                    Image(systemName: "bell")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(navyBlue)
+                                }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(notice.title)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                                    .lineLimit(2)
+                                Text(notice.description)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(white: 0.33))
+                                    .lineLimit(3)
+                                Text(formatted(notice.publishedAt))
+                                    .font(.system(size: 11))
+                                    .foregroundColor(Color(white: 0.6))
                             }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(notice.title)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
-                                .lineLimit(2)
-                            Text(notice.description)
-                                .font(.system(size: 12))
-                                .foregroundColor(Color(white: 0.33))
-                                .lineLimit(3)
-                            Text(formatted(notice.publishedAt))
-                                .font(.system(size: 11))
-                                .foregroundColor(Color(white: 0.6))
                         }
+                        .padding(12)
                     }
-                    .padding(12)
+                    .background(Color(red: 0.94, green: 0.957, blue: 1.0))
+                    .cornerRadius(12)
                 }
-                .background(Color(red: 0.94, green: 0.957, blue: 1.0))
-                .cornerRadius(12)
+                .buttonStyle(.plain)
             } else {
                 Text("No new notices")
                     .font(.system(size: 14))
@@ -646,18 +664,15 @@ private struct NewNoticesSection: View {
 // MARK: - Ongoing Complaints
 
 private func daysOpen(from date: Date) -> String {
-    let days = Int(Date().timeIntervalSince(date) / 86400)
-    switch days {
-    case ..<1: return "Today"
-    case 1:    return "1d open"
-    default:   return "\(days)d open"
-    }
+    let days = max(1, Int(Date().timeIntervalSince(date) / 86400))
+    return days == 1 ? "Active since 1 day" : "Active since \(days) days"
 }
 
 private struct OngoingComplaintsSection: View {
     let complaints: [Complaint]
     let navyBlue: Color
     let onViewAll: () -> Void
+    var onComplaintTap: (Complaint) -> Void = { _ in }
 
     private var rows: [[Complaint]] {
         stride(from: 0, to: complaints.count, by: 2).map {
@@ -698,12 +713,15 @@ private struct OngoingComplaintsSection: View {
                     ForEach(rows, id: \.first?.id) { row in
                         HStack(spacing: 12) {
                             ForEach(row) { complaint in
-                                ComplaintCardView(
-                                    timeOpen: daysOpen(from: complaint.date),
-                                    title: complaint.problem,
-                                    category: complaint.category,
-                                    status: complaint.status
-                                )
+                                Button(action: { onComplaintTap(complaint) }) {
+                                    ComplaintCardView(
+                                        timeOpen: daysOpen(from: complaint.date),
+                                        title: complaint.problem,
+                                        category: complaint.category,
+                                        status: complaint.status
+                                    )
+                                }
+                                .buttonStyle(.plain)
                             }
                             if row.count == 1 {
                                 Spacer().frame(maxWidth: .infinity)
@@ -755,17 +773,27 @@ private struct StatusBadgeView: View {
     let status: String
 
     private var colors: (bg: Color, fg: Color) {
-        switch status {
-        case "In Progress": return (Color(red: 0.933, green: 0.949, blue: 1.0), Color(red: 0.231, green: 0.31, blue: 0.847))
-        case "Assigned":    return (Color(red: 0.961, green: 0.933, blue: 1.0), Color(red: 0.486, green: 0.227, blue: 0.929))
-        case "CLOSED", "Closed": return (Color(red: 0.925, green: 0.992, blue: 0.961), Color(red: 0.024, green: 0.588, blue: 0.416))
-        case "OPEN", "Pending": return (Color(red: 1.0, green: 0.969, blue: 0.929), Color(red: 0.851, green: 0.467, blue: 0.024))
-        default:            return (Color(white: 0.96), Color(white: 0.38))
+        switch status.uppercased() {
+        case "OPEN":      return (Color(red: 1.0, green: 0.969, blue: 0.929), Color(red: 0.851, green: 0.467, blue: 0.024))
+        case "ASSIGNED":  return (Color(red: 0.89, green: 0.95, blue: 1.0),   Color(red: 0.082, green: 0.396, blue: 0.753))
+        case "COMPLETED": return (Color(red: 0.91, green: 0.97, blue: 0.91),  Color(red: 0.18, green: 0.49, blue: 0.20))
+        case "CLOSED":    return (Color(red: 1.0, green: 0.92, blue: 0.92),   Color(red: 0.718, green: 0.11, blue: 0.11))
+        default:          return (Color(white: 0.96), Color(white: 0.38))
+        }
+    }
+
+    private var label: String {
+        switch status.uppercased() {
+        case "OPEN":      return "Open"
+        case "ASSIGNED":  return "Assigned"
+        case "COMPLETED": return "Completed"
+        case "CLOSED":    return "Closed"
+        default:          return status
         }
     }
 
     var body: some View {
-        Text(status)
+        Text(label)
             .font(.system(size: 11, weight: .medium))
             .foregroundColor(colors.fg)
             .padding(.horizontal, 10)

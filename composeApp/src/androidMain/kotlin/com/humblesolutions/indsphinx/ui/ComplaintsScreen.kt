@@ -40,7 +40,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.outlined.Person2
 import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material.icons.outlined.AcUnit
 import androidx.compose.material.icons.outlined.BugReport
@@ -59,14 +58,20 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Plumbing
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.WaterDrop
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -163,6 +168,14 @@ private fun categoryVisuals(category: String): CategoryVisuals = when {
         CategoryVisuals(Icons.Outlined.Build, Color(0xFFF5F5F5), Color(0xFF9E9E9E), "Maintenance")
 }
 
+// ─── Start action ─────────────────────────────────────────────────────────────
+
+sealed class ComplaintStartAction {
+    class AddComplaint(val flatId: String) : ComplaintStartAction()
+    class ViewComplaints(val occupantId: String) : ComplaintStartAction()
+    class OpenComplaint(val complaint: com.humblesolutions.indsphinx.model.Complaint, val occupantId: String) : ComplaintStartAction()
+}
+
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 @Composable
@@ -172,16 +185,26 @@ fun ComplaintsScreen(
     occupantDocId: String,
     flatNumber: String,
     flatId: String,
-    onMenuClick: () -> Unit
+    onMenuClick: () -> Unit,
+    startAction: ComplaintStartAction? = null
 ) {
     val viewModel: ComplaintsViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(startAction) {
+        when (startAction) {
+            is ComplaintStartAction.AddComplaint -> viewModel.onAddComplaintClick(startAction.flatId)
+            is ComplaintStartAction.ViewComplaints -> viewModel.onViewComplaintsClick(startAction.occupantId)
+            is ComplaintStartAction.OpenComplaint -> viewModel.openComplaintDirectly(startAction.complaint, startAction.occupantId)
+            null -> {}
+        }
+    }
 
     when (val state = uiState) {
         is ComplaintsUiState.Landing -> {
             ComplaintsLandingScreen(
                 onMenuClick = onMenuClick,
-                onAddComplaint = { viewModel.onAddComplaintClick() },
+                onAddComplaint = { viewModel.onAddComplaintClick(flatId) },
                 onViewComplaints = { viewModel.onViewComplaintsClick(occupantDocId) }
             )
         }
@@ -233,7 +256,7 @@ fun ComplaintsScreen(
         is ComplaintsUiState.Success -> {
             ComplaintsLandingScreen(
                 onMenuClick = onMenuClick,
-                onAddComplaint = { viewModel.onAddComplaintClick() },
+                onAddComplaint = { viewModel.onAddComplaintClick(flatId) },
                 onViewComplaints = { viewModel.onViewComplaintsClick(occupantDocId) }
             )
             SuccessDialog(onDismiss = { viewModel.dismissSuccess() })
@@ -242,7 +265,7 @@ fun ComplaintsScreen(
         is ComplaintsUiState.Error -> {
             ComplaintsLandingScreen(
                 onMenuClick = onMenuClick,
-                onAddComplaint = { viewModel.onAddComplaintClick() },
+                onAddComplaint = { viewModel.onAddComplaintClick(flatId) },
                 onViewComplaints = { viewModel.onViewComplaintsClick(occupantDocId) }
             )
             ErrorDialog(
@@ -314,7 +337,7 @@ private fun ComplaintsLandingScreen(
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-                Icon(Icons.Outlined.Person, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.size(24.dp))
             }
         }
 
@@ -680,44 +703,93 @@ private fun ImagePreviewDialog(uri: Uri, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun MediaSourceDialog(title: String, onCamera: () -> Unit, onGallery: () -> Unit, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+private fun MediaSourceDialog(title: String, isVideo: Boolean, onCamera: () -> Unit, onGallery: () -> Unit, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Column(modifier = Modifier.padding(8.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    .background(Color.White)
+                    .padding(bottom = 32.dp)
+            ) {
+                // Drag handle
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp, bottom = 8.dp)
+                        .size(width = 40.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFFDDDDDD))
+                        .align(Alignment.CenterHorizontally)
+                )
+
                 Text(
                     title,
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF1A1A2E),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                 )
-                HorizontalDivider(color = Color(0xFFF0F0F0))
-                TextButton(
-                    onClick = { onCamera(); onDismiss() },
-                    modifier = Modifier.fillMaxWidth()
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Icon(Icons.Outlined.CameraAlt, null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text("Camera", fontSize = 14.sp, color = Color(0xFF1A1A2E))
-                    Spacer(Modifier.weight(1f))
-                }
-                TextButton(
-                    onClick = { onGallery(); onDismiss() },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Outlined.PlayCircle, null, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text("Gallery", fontSize = 14.sp, color = Color(0xFF1A1A2E))
-                    Spacer(Modifier.weight(1f))
-                }
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Cancel", fontSize = 14.sp, color = Color(0xFF888888))
+                    // Camera tile
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFF0F4FF))
+                            .clickable { onCamera(); onDismiss() }
+                            .padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(NavyBlue),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Outlined.CameraAlt, null, tint = Color.White, modifier = Modifier.size(26.dp))
+                        }
+                        Text("Camera", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1A1A2E))
+                    }
+
+                    // Gallery tile
+                    val galleryIcon = if (isVideo) Icons.Outlined.VideoLibrary else Icons.Outlined.PhotoLibrary
+                    val galleryLabel = if (isVideo) "Video Library" else "Photo Library"
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFF0F4FF))
+                            .clickable { onGallery(); onDismiss() }
+                            .padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(NavyBlue),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(galleryIcon, null, tint = Color.White, modifier = Modifier.size(26.dp))
+                        }
+                        Text(galleryLabel, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1A1A2E))
+                    }
                 }
             }
         }
@@ -1056,6 +1128,7 @@ private fun SubmitComplaintScreen(
         if (showPhotoSourceDialog) {
             MediaSourceDialog(
                 title = "Add Photo",
+                isVideo = false,
                 onCamera = { launchCamera(false) },
                 onGallery = {
                     galleryPhotoLauncher.launch(
@@ -1068,6 +1141,7 @@ private fun SubmitComplaintScreen(
         if (showVideoSourceDialog) {
             MediaSourceDialog(
                 title = "Add Video",
+                isVideo = true,
                 onCamera = { launchCamera(true) },
                 onGallery = {
                     galleryVideoLauncher.launch(
@@ -1189,14 +1263,16 @@ private fun formatDate(timestamp: Long): String {
 @Composable
 private fun StatusChip(status: String) {
     val (bg, fg) = when (status.uppercase()) {
-        "OPEN" -> Color(0xFFFFF3E0) to Color(0xFFE65100)
+        "OPEN" -> Color(0xFFFFF7ED) to Color(0xFFD97706)
+        "ASSIGNED" -> Color(0xFFE3F2FD) to Color(0xFF1565C0)
         "IN_PROGRESS" -> Color(0xFFE3F2FD) to Color(0xFF1565C0)
         "COMPLETED" -> Color(0xFFE8F5E9) to Color(0xFF2E7D32)
-        "CLOSED" -> Color(0xFFF5F5F5) to Color(0xFF757575)
+        "CLOSED" -> Color(0xFFFFEBEE) to Color(0xFFB71C1C)
         else -> Color(0xFFF5F5F5) to Color(0xFF757575)
     }
     val label = when (status.uppercase()) {
         "OPEN" -> "Open"
+        "ASSIGNED" -> "Assigned"
         "IN_PROGRESS" -> "In Progress"
         "COMPLETED" -> "Completed"
         "CLOSED" -> "Closed"
@@ -1238,9 +1314,20 @@ private fun ViewComplaintsScreen(
     onComplaintClick: (Complaint) -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+    var newestFirst by remember { mutableStateOf(true) }
+
     val ongoing = complaints.filter { it.status.uppercase() != "CLOSED" }
     val closed = complaints.filter { it.status.uppercase() == "CLOSED" }
-    val currentList = if (selectedTab == 0) ongoing else closed
+    val baseList = if (selectedTab == 0) ongoing else closed
+
+    val filteredList = baseList
+        .filter { c ->
+            searchQuery.isBlank() ||
+                c.category.contains(searchQuery, ignoreCase = true) ||
+                c.problem.contains(searchQuery, ignoreCase = true)
+        }
+        .let { list -> if (newestFirst) list.sortedByDescending { it.date } else list.sortedBy { it.date } }
 
     Column(modifier = Modifier.fillMaxSize().background(BgGray)) {
         Box(modifier = Modifier.fillMaxWidth().background(NavyBlue)) {
@@ -1286,10 +1373,118 @@ private fun ViewComplaintsScreen(
             }
         }
 
-        if (currentList.isEmpty()) {
+        // Search + filter row
+        var showSortMenu by remember { mutableStateOf(false) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Thin custom search bar
+            BasicTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = 13.sp,
+                    color = Color(0xFF1A1A2E)
+                ),
+                modifier = Modifier.weight(1f),
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF2F4F8))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Search,
+                            contentDescription = null,
+                            tint = Color(0xFF9E9E9E),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    "Search by category",
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF9E9E9E)
+                                )
+                            }
+                            innerTextField()
+                        }
+                        if (searchQuery.isNotEmpty()) {
+                            Icon(
+                                Icons.Outlined.Close,
+                                contentDescription = null,
+                                tint = Color(0xFF9E9E9E),
+                                modifier = Modifier.size(16.dp).clickable { searchQuery = "" }
+                            )
+                        }
+                    }
+                }
+            )
+
+            // Filter icon + dropdown
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (showSortMenu) NavyBlue.copy(alpha = 0.1f) else Color(0xFFF2F4F8))
+                        .clickable { showSortMenu = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.Tune,
+                        contentDescription = "Sort",
+                        tint = NavyBlue,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                DropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = { showSortMenu = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "Date (Newest First)",
+                                fontSize = 14.sp,
+                                color = if (newestFirst) NavyBlue else Color(0xFF1A1A2E),
+                                fontWeight = if (newestFirst) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        onClick = { newestFirst = true; showSortMenu = false },
+                        modifier = if (newestFirst) Modifier.background(Color(0xFFF0F4FF)) else Modifier
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "Date (Oldest First)",
+                                fontSize = 14.sp,
+                                color = if (!newestFirst) NavyBlue else Color(0xFF1A1A2E),
+                                fontWeight = if (!newestFirst) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        onClick = { newestFirst = false; showSortMenu = false },
+                        modifier = if (!newestFirst) Modifier.background(Color(0xFFF0F4FF)) else Modifier
+                    )
+                }
+            }
+        }
+
+        if (filteredList.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    if (selectedTab == 0) "No ongoing complaints" else "No closed complaints",
+                    if (searchQuery.isNotEmpty()) "No results found" else if (selectedTab == 0) "No ongoing complaints" else "No closed complaints",
                     color = Color(0xFF888888),
                     fontSize = 15.sp
                 )
@@ -1300,7 +1495,7 @@ private fun ViewComplaintsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item { Spacer(Modifier.height(12.dp)) }
-                items(currentList) { complaint ->
+                items(filteredList) { complaint ->
                     ComplaintListCard(complaint = complaint, onClick = { onComplaintClick(complaint) })
                 }
                 item { Spacer(Modifier.height(16.dp)) }

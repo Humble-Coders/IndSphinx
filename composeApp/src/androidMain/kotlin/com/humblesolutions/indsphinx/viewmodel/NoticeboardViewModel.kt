@@ -24,17 +24,24 @@ class NoticeboardViewModel(application: Application) : AndroidViewModel(applicat
     private val _uiState = MutableStateFlow<NoticeboardUiState>(NoticeboardUiState.Loading)
     val uiState: StateFlow<NoticeboardUiState> = _uiState.asStateFlow()
 
+    private var pendingNotice: Notice? = null
+
     init {
         viewModelScope.launch {
             try {
                 observeNoticesUseCase.execute().collect { notices ->
                     val current = _uiState.value
-                    _uiState.value = if (current is NoticeboardUiState.Detail) {
-                        // Keep detail open but refresh the notice data
-                        val refreshed = notices.find { it.id == current.notice.id } ?: current.notice
-                        NoticeboardUiState.Detail(refreshed, notices)
-                    } else {
-                        NoticeboardUiState.Loaded(notices)
+                    _uiState.value = when {
+                        current is NoticeboardUiState.Detail -> {
+                            val refreshed = notices.find { it.id == current.notice.id } ?: current.notice
+                            NoticeboardUiState.Detail(refreshed, notices)
+                        }
+                        pendingNotice != null -> {
+                            val notice = pendingNotice!!
+                            pendingNotice = null
+                            NoticeboardUiState.Detail(notices.find { it.id == notice.id } ?: notice, notices)
+                        }
+                        else -> NoticeboardUiState.Loaded(notices)
                     }
                 }
             } catch (e: Exception) {
@@ -46,6 +53,18 @@ class NoticeboardViewModel(application: Application) : AndroidViewModel(applicat
     fun onNoticeSelected(notice: Notice) {
         val notices = (_uiState.value as? NoticeboardUiState.Loaded)?.notices ?: return
         _uiState.value = NoticeboardUiState.Detail(notice, notices)
+    }
+
+    fun openNoticeDirectly(notice: Notice) {
+        val current = _uiState.value
+        if (current is NoticeboardUiState.Loaded) {
+            _uiState.value = NoticeboardUiState.Detail(
+                current.notices.find { it.id == notice.id } ?: notice,
+                current.notices
+            )
+        } else {
+            pendingNotice = notice
+        }
     }
 
     fun onBackFromDetail() {

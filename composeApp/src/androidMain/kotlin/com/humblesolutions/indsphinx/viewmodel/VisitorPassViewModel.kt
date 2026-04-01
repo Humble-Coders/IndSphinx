@@ -55,7 +55,11 @@ class VisitorPassViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun onRequestPassTapped() {
+    fun onRequestPassTapped(flatId: String) {
+        if (flatId.isBlank()) {
+            _uiState.value = VisitorPassUiState.Error("No flat allotted. Please contact admin.", currentPasses())
+            return
+        }
         val passes = currentPasses()
         _uiState.value = VisitorPassUiState.RequestForm(passes)
     }

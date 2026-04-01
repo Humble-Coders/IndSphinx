@@ -4,6 +4,19 @@ import AVKit
 import AVFoundation
 import Lottie
 
+// MARK: - Start Action
+
+struct ComplaintStartAction: Equatable {
+    enum Kind {
+        case addComplaint(flatId: String)
+        case viewComplaints(occupantId: String)
+        case openComplaint(complaint: Complaint, occupantId: String)
+    }
+    let id = UUID()
+    let kind: Kind
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+}
+
 // MARK: - Navigation Route
 
 enum ComplaintsRoute: Hashable {
@@ -22,6 +35,7 @@ struct ComplaintsView: View {
     let flatNumber: String
     let flatId: String
     let onMenuTap: () -> Void
+    var startAction: ComplaintStartAction? = nil
 
     @StateObject private var viewModel = ComplaintsViewModel()
     @State private var path: [ComplaintsRoute] = []
@@ -47,7 +61,7 @@ struct ComplaintsView: View {
                 navyBlue: navyBlue,
                 bgGray: bgGray,
                 onMenuTap: onMenuTap,
-                onAddComplaint: { viewModel.onAddComplaintTapped() },
+                onAddComplaint: { viewModel.onAddComplaintTapped(flatId: flatId) },
                 onViewComplaints: { viewModel.onViewComplaintsTapped(occupantId: occupantDocId) }
             )
             .overlay {
@@ -124,6 +138,17 @@ struct ComplaintsView: View {
         .onChange(of: viewModel.state) { newState in
             syncPath(with: newState)
         }
+        .onChange(of: startAction) { action in
+            guard let action else { return }
+            switch action.kind {
+            case .addComplaint(let fId):
+                viewModel.onAddComplaintTapped(flatId: fId)
+            case .viewComplaints(let occupantId):
+                viewModel.onViewComplaintsTapped(occupantId: occupantId)
+            case .openComplaint(let complaint, let occupantId):
+                viewModel.openComplaintDirectly(complaint: complaint, occupantId: occupantId)
+            }
+        }
     }
 
     private func syncPath(with state: ComplaintsViewModel.State) {
@@ -198,9 +223,7 @@ private struct ComplaintsLandingView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
                     Spacer()
-                    Image(systemName: "person")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
+                    Color.clear.frame(width: 20, height: 20)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 16)
@@ -395,8 +418,6 @@ private struct SubmitComplaintFormView: View {
     @State private var cameraVideoURLs: [URL] = []
     @State private var photoPickerItems: [PhotosPickerItem] = []
     @State private var videoPickerItems: [PhotosPickerItem] = []
-    @State private var showPhotoSourceSheet = false
-    @State private var showVideoSourceSheet = false
     @State private var showCameraPhoto = false
     @State private var showCameraVideo = false
     @State private var showPhotoLibraryPicker = false
@@ -543,7 +564,12 @@ private struct SubmitComplaintFormView: View {
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
                         HStack(spacing: 12) {
-                            Button { showPhotoSourceSheet = true } label: {
+                            Menu {
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    Button("Camera") { showCameraPhoto = true }
+                                }
+                                Button("Photo Library") { showPhotoLibraryPicker = true }
+                            } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "camera")
                                         .font(.system(size: 16))
@@ -557,7 +583,13 @@ private struct SubmitComplaintFormView: View {
                                 .background(Color(white: 0.96))
                                 .cornerRadius(10)
                             }
-                            Button { showVideoSourceSheet = true } label: {
+                            .buttonStyle(.plain)
+                            Menu {
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    Button("Camera") { showCameraVideo = true }
+                                }
+                                Button("Video Library") { showVideoLibraryPicker = true }
+                            } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "video")
                                         .font(.system(size: 16))
@@ -571,6 +603,7 @@ private struct SubmitComplaintFormView: View {
                                 .background(Color(white: 0.96))
                                 .cornerRadius(10)
                             }
+                            .buttonStyle(.plain)
                         }
                         if !pickedImages.isEmpty || !cameraVideoURLs.isEmpty {
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -667,28 +700,14 @@ private struct SubmitComplaintFormView: View {
             .padding(16)
             .background(Color.white)
         }
-        .confirmationDialog("Add Photo", isPresented: $showPhotoSourceSheet) {
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                Button("Camera") { showCameraPhoto = true }
-            }
-            Button("Photo Library") { showPhotoLibraryPicker = true }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog("Add Video", isPresented: $showVideoSourceSheet) {
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                Button("Camera") { showCameraVideo = true }
-            }
-            Button("Video Library") { showVideoLibraryPicker = true }
-            Button("Cancel", role: .cancel) {}
-        }
         .photosPicker(isPresented: $showPhotoLibraryPicker, selection: $photoPickerItems, matching: .images)
         .photosPicker(isPresented: $showVideoLibraryPicker, selection: $videoPickerItems, matching: .videos)
-        .sheet(isPresented: $showCameraPhoto) {
+        .fullScreenCover(isPresented: $showCameraPhoto) {
             CameraPickerView(mediaType: .photo) { image in
                 pickedImages.append(image)
             } onVideoCapture: { _ in } onDismiss: { showCameraPhoto = false }
         }
-        .sheet(isPresented: $showCameraVideo) {
+        .fullScreenCover(isPresented: $showCameraVideo) {
             CameraPickerView(mediaType: .video) { _ in } onVideoCapture: { url in
                 cameraVideoURLs.append(url)
             } onDismiss: { showCameraVideo = false }
@@ -1077,17 +1096,19 @@ private struct CameraPickerView: UIViewControllerRepresentable {
 
 private func statusColor(for status: String) -> (bg: Color, fg: Color) {
     switch status.uppercased() {
-    case "OPEN":        return (Color(red: 1.0, green: 0.95, blue: 0.88), Color(red: 0.9, green: 0.40, blue: 0.0))
-    case "IN_PROGRESS": return (Color(red: 0.89, green: 0.95, blue: 1.0), Color(red: 0.08, green: 0.40, blue: 0.75))
-    case "COMPLETED":   return (Color(red: 0.91, green: 0.97, blue: 0.91), Color(red: 0.18, green: 0.49, blue: 0.20))
-    case "CLOSED":      return (Color(red: 0.96, green: 0.96, blue: 0.96), Color(red: 0.46, green: 0.46, blue: 0.46))
-    default:            return (Color(red: 0.96, green: 0.96, blue: 0.96), Color(red: 0.46, green: 0.46, blue: 0.46))
+    case "OPEN":        return (Color(red: 1.0, green: 0.969, blue: 0.929), Color(red: 0.851, green: 0.467, blue: 0.024))
+    case "ASSIGNED":    return (Color(red: 0.89, green: 0.95, blue: 1.0),   Color(red: 0.082, green: 0.396, blue: 0.753))
+    case "IN_PROGRESS": return (Color(red: 0.89, green: 0.95, blue: 1.0),   Color(red: 0.082, green: 0.396, blue: 0.753))
+    case "COMPLETED":   return (Color(red: 0.91, green: 0.97, blue: 0.91),  Color(red: 0.18, green: 0.49, blue: 0.20))
+    case "CLOSED":      return (Color(red: 1.0, green: 0.92, blue: 0.92),   Color(red: 0.718, green: 0.11, blue: 0.11))
+    default:            return (Color(red: 0.96, green: 0.96, blue: 0.96),  Color(red: 0.46, green: 0.46, blue: 0.46))
     }
 }
 
 private func statusLabel(for status: String) -> String {
     switch status.uppercased() {
     case "OPEN":        return "Open"
+    case "ASSIGNED":    return "Assigned"
     case "IN_PROGRESS": return "In Progress"
     case "COMPLETED":   return "Completed"
     case "CLOSED":      return "Closed"
@@ -1146,9 +1167,20 @@ private struct ViewComplaintsView: View {
     let onComplaintTap: (Complaint) -> Void
 
     @State private var selectedTab = 0
+    @State private var searchQuery = ""
+    @State private var newestFirst = true
 
     private var ongoing: [Complaint] { complaints.filter { $0.status.uppercased() != "CLOSED" } }
     private var closed: [Complaint]  { complaints.filter { $0.status.uppercased() == "CLOSED" } }
+
+    private var filteredList: [Complaint] {
+        let base = selectedTab == 0 ? ongoing : closed
+        let searched = searchQuery.isEmpty ? base : base.filter {
+            $0.category.localizedCaseInsensitiveContains(searchQuery) ||
+            $0.problem.localizedCaseInsensitiveContains(searchQuery)
+        }
+        return newestFirst ? searched.sorted { $0.date > $1.date } : searched.sorted { $0.date < $1.date }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1188,18 +1220,67 @@ private struct ViewComplaintsView: View {
             }
             .background(Color.white)
 
-            let currentList = selectedTab == 0 ? ongoing : closed
+            // Search + sort row
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(white: 0.6))
+                    TextField("Search by category or problem", text: $searchQuery)
+                        .font(.system(size: 13))
+                    if !searchQuery.isEmpty {
+                        Button(action: { searchQuery = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(white: 0.6))
+                        }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color(white: 0.96))
+                .cornerRadius(10)
 
-            if currentList.isEmpty {
+                Menu {
+                    Button(action: { newestFirst = true }) {
+                        HStack {
+                            Text("Date (Newest First)")
+                            if newestFirst { Image(systemName: "checkmark") }
+                        }
+                    }
+                    Button(action: { newestFirst = false }) {
+                        HStack {
+                            Text("Date (Oldest First)")
+                            if !newestFirst { Image(systemName: "checkmark") }
+                        }
+                    }
+                } label: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(white: 0.95))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(navyBlue)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.white)
+
+            if filteredList.isEmpty {
                 Spacer()
-                Text(selectedTab == 0 ? "No ongoing complaints" : "No closed complaints")
+                Text(searchQuery.isEmpty
+                     ? (selectedTab == 0 ? "No ongoing complaints" : "No closed complaints")
+                     : "No results found")
                     .font(.system(size: 15))
                     .foregroundColor(Color(white: 0.53))
                 Spacer()
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(currentList) { complaint in
+                        ForEach(filteredList) { complaint in
                             ComplaintListCard(
                                 navyBlue: navyBlue,
                                 complaint: complaint,

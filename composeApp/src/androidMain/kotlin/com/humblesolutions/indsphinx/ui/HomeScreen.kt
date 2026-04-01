@@ -1,5 +1,13 @@
 package com.humblesolutions.indsphinx.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +47,7 @@ import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Numbers
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
@@ -51,6 +60,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -80,6 +90,8 @@ import kotlinx.coroutines.launch
 private val NavyBlue = Color(0xFF1E2D6B)
 private val BackgroundGray = Color(0xFFF2F4F8)
 
+private enum class HomeOverlay { None, VisitorPass, Feedback }
+
 @Composable
 fun HomeScreen(onSignOut: () -> Unit) {
     val viewModel: HomeViewModel = viewModel()
@@ -89,11 +101,37 @@ fun HomeScreen(onSignOut: () -> Unit) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var ongoingComplaints by remember { mutableStateOf<List<Complaint>>(emptyList()) }
-    var showVisitorPass by remember { mutableStateOf(false) }
-    var showFeedback by remember { mutableStateOf(false) }
+    var overlay by remember { mutableStateOf(HomeOverlay.None) }
+    var pendingComplaintAction by remember { mutableStateOf<ComplaintStartAction?>(null) }
+    var pendingNotice by remember { mutableStateOf<Notice?>(null) }
+    var showLogoutConfirmation by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState) {
         if (uiState is HomeUiState.AccessDenied) onSignOut()
+    }
+
+    if (showLogoutConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirmation = false },
+            title = { Text("Log Out", fontWeight = FontWeight.SemiBold, fontSize = 16.sp) },
+            text = { Text("Are you sure you want to log out?", fontSize = 14.sp, color = Color(0xFF555555)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLogoutConfirmation = false
+                    viewModel.signOut()
+                    onSignOut()
+                }) {
+                    Text("Log Out", color = Color(0xFFE53935), fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirmation = false }) {
+                    Text("Cancel", color = Color(0xFF555555))
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color.White
+        )
     }
 
     val ready = uiState as? HomeUiState.Ready
@@ -117,164 +155,204 @@ fun HomeScreen(onSignOut: () -> Unit) {
         }
     }
 
-    if (showVisitorPass) {
-        VisitorPassScreen(
-            occupantId = occupantDocId,
-            occupantName = name,
-            flatId = flatId,
-            flatNumber = flatNumber,
-            onBack = { showVisitorPass = false }
-        )
-        return
+    // Tab back: goes to Home tab; overlay back: dismisses overlay. Overlay handler is last → highest priority.
+    BackHandler(enabled = overlay == HomeOverlay.None && selectedTab != 0) {
+        selectedTab = 0
+    }
+    BackHandler(enabled = overlay != HomeOverlay.None) {
+        overlay = HomeOverlay.None
     }
 
-    if (showFeedback) {
-        FeedbackScreen(
-            occupantId = occupantDocId,
-            occupantName = name,
-            onBack = { showFeedback = false }
-        )
-        return
-    }
-
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = Color.White,
-                windowInsets = WindowInsets(0),
-                modifier = Modifier.width(300.dp)
-            ) {
-                HomeDrawerContent(
-                    name = name,
-                    flatNumber = flatNumber,
-                    onNavigateToComplaints = {
-                        scope.launch { drawerState.close() }
-                        selectedTab = 1
-                    },
-                    onNavigateToVisitorPass = {
-                        scope.launch { drawerState.close() }
-                        showVisitorPass = true
-                    },
-                    onNavigateToFeedback = {
-                        scope.launch { drawerState.close() }
-                        showFeedback = true
-                    },
-                    onNavigateToNoticeboard = {
-                        scope.launch { drawerState.close() }
-                        selectedTab = 2
-                    },
-                    onSignOut = {
-                        viewModel.signOut()
-                        onSignOut()
-                    }
+    AnimatedContent(
+        targetState = overlay,
+        transitionSpec = {
+            if (targetState != HomeOverlay.None) {
+                (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))).togetherWith(
+                    slideOutHorizontally(tween(250)) { -it / 4 } + fadeOut(tween(200))
+                )
+            } else {
+                (slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(300))).togetherWith(
+                    slideOutHorizontally(tween(300)) { it } + fadeOut(tween(250))
                 )
             }
-        }
-    ) {
-        Scaffold(
-            bottomBar = {
-                NavigationBar(
-                    containerColor = Color.White,
-                    tonalElevation = 0.dp
-                ) {
-                    val tabs = listOf(
-                        "Home" to Icons.Outlined.Home,
-                        "Complaints" to Icons.Outlined.Description,
-                        "Noticeboard" to Icons.Outlined.NotificationsNone,
-                        "Profile" to Icons.Outlined.Person
-                    )
-                    tabs.forEachIndexed { index, (label, icon) ->
-                        NavigationBarItem(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            icon = { Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp)) },
-                            label = { Text(label, fontSize = 11.sp) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = NavyBlue,
-                                selectedTextColor = NavyBlue,
-                                indicatorColor = Color.Transparent,
-                                unselectedIconColor = Color(0xFF9E9E9E),
-                                unselectedTextColor = Color(0xFF9E9E9E)
-                            )
+        },
+        label = "OverlayAnimation"
+    ) { currentOverlay ->
+        when (currentOverlay) {
+            HomeOverlay.VisitorPass -> VisitorPassScreen(
+                occupantId = occupantDocId,
+                occupantName = name,
+                flatId = flatId,
+                flatNumber = flatNumber,
+                onBack = { overlay = HomeOverlay.None }
+            )
+            HomeOverlay.Feedback -> FeedbackScreen(
+                occupantId = occupantDocId,
+                occupantName = name,
+                onBack = { overlay = HomeOverlay.None }
+            )
+            HomeOverlay.None -> ModalNavigationDrawer(
+                drawerState = drawerState,
+                drawerContent = {
+                    ModalDrawerSheet(
+                        drawerContainerColor = Color.White,
+                        windowInsets = WindowInsets(0),
+                        modifier = Modifier.width(300.dp)
+                    ) {
+                        HomeDrawerContent(
+                            name = name,
+                            flatNumber = flatNumber,
+                            onNavigateToComplaints = {
+                                scope.launch { drawerState.close() }
+                                selectedTab = 1
+                            },
+                            onNavigateToVisitorPass = {
+                                scope.launch { drawerState.close() }
+                                overlay = HomeOverlay.VisitorPass
+                            },
+                            onNavigateToFeedback = {
+                                scope.launch { drawerState.close() }
+                                overlay = HomeOverlay.Feedback
+                            },
+                            onNavigateToNoticeboard = {
+                                scope.launch { drawerState.close() }
+                                selectedTab = 2
+                            },
+                            onSignOut = { showLogoutConfirmation = true }
                         )
                     }
                 }
-            },
-            containerColor = BackgroundGray,
-            contentWindowInsets = WindowInsets(0)
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = padding.calculateBottomPadding())
             ) {
-                when (selectedTab) {
-                    0 -> {
-                        HomeHeader(
-                            name = name,
-                            greeting = greeting,
-                            flatNumber = flatNumber,
-                            onMenuClick = { scope.launch { drawerState.open() } }
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp)
+                Scaffold(
+                    bottomBar = {
+                        NavigationBar(
+                            containerColor = Color.White,
+                            tonalElevation = 0.dp
                         ) {
-                            Spacer(Modifier.height(16.dp))
-                            QuickShortcutsSection(
-                                onAddComplaint = { selectedTab = 1 },
-                                onNoticeboard = { selectedTab = 2 },
-                                onVisitorPass = { showVisitorPass = true },
-                                onFeedback = { showFeedback = true }
+                            val tabs = listOf(
+                                "Home" to Icons.Outlined.Home,
+                                "Complaints" to Icons.Outlined.Description,
+                                "Noticeboard" to Icons.Outlined.NotificationsNone,
+                                "Profile" to Icons.Outlined.Person
                             )
-                            Spacer(Modifier.height(20.dp))
-                            NewNoticesSection(
-                                notice = latestNotice,
-                                onViewAll = { selectedTab = 2 }
-                            )
-                            Spacer(Modifier.height(20.dp))
-                            OngoingComplaintsSection(
-                                complaints = ongoingComplaints,
-                                onViewAll = { selectedTab = 1 }
-                            )
-                            Spacer(Modifier.height(24.dp))
+                            tabs.forEachIndexed { index, (label, icon) ->
+                                NavigationBarItem(
+                                    selected = selectedTab == index,
+                                    onClick = { selectedTab = index },
+                                    icon = { Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp)) },
+                                    label = { Text(label, fontSize = 11.sp) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = NavyBlue,
+                                        selectedTextColor = NavyBlue,
+                                        indicatorColor = Color.Transparent,
+                                        unselectedIconColor = Color(0xFF9E9E9E),
+                                        unselectedTextColor = Color(0xFF9E9E9E)
+                                    )
+                                )
+                            }
                         }
-                    }
-                    1 -> ComplaintsScreen(
-                        occupantName = name,
-                        occupantEmail = email,
-                        occupantDocId = occupantDocId,
-                        flatNumber = flatNumber,
-                        flatId = flatId,
-                        onMenuClick = { scope.launch { drawerState.open() } }
-                    )
-                    2 -> NoticeboardScreen(
-                        onMenuClick = { scope.launch { drawerState.open() } }
-                    )
-                    3 -> ProfileContent(
-                        name = name,
-                        email = email,
-                        role = role,
-                        empId = empId,
-                        flatNumber = flatNumber,
-                        occupantFrom = occupantFrom,
-                        isCoordinator = isCoordinator,
-                        onSignOut = {
-                            viewModel.signOut()
-                            onSignOut()
-                        },
+                    },
+                    containerColor = BackgroundGray,
+                    contentWindowInsets = WindowInsets(0)
+                ) { padding ->
+                    Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                    )
-                    else -> Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                            .padding(bottom = padding.calculateBottomPadding())
                     ) {
-                        Text("Coming Soon", color = Color(0xFF999999), fontSize = 16.sp)
+                        AnimatedContent(
+                            targetState = selectedTab,
+                            transitionSpec = {
+                                val toRight = targetState > initialState
+                                (slideInHorizontally(tween(280)) { if (toRight) it else -it } + fadeIn(tween(280))).togetherWith(
+                                    slideOutHorizontally(tween(280)) { if (toRight) -it else it } + fadeOut(tween(280))
+                                )
+                            },
+                            label = "TabAnimation",
+                            modifier = Modifier.fillMaxSize()
+                        ) { tab ->
+                            when (tab) {
+                                0 -> Column(modifier = Modifier.fillMaxSize()) {
+                                    HomeHeader(
+                                        name = name,
+                                        greeting = greeting,
+                                        flatNumber = flatNumber,
+                                        onMenuClick = { scope.launch { drawerState.open() } }
+                                    )
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .verticalScroll(rememberScrollState())
+                                            .padding(horizontal = 16.dp)
+                                    ) {
+                                        Spacer(Modifier.height(16.dp))
+                                        QuickShortcutsSection(
+                                            onAddComplaint = {
+                                                pendingComplaintAction = ComplaintStartAction.AddComplaint(flatId)
+                                                selectedTab = 1
+                                            },
+                                            onNoticeboard = { selectedTab = 2 },
+                                            onVisitorPass = { overlay = HomeOverlay.VisitorPass },
+                                            onFeedback = { overlay = HomeOverlay.Feedback }
+                                        )
+                                        Spacer(Modifier.height(20.dp))
+                                        NewNoticesSection(
+                                            notice = latestNotice,
+                                            onViewAll = { selectedTab = 2 },
+                                            onNoticeClick = { notice ->
+                                                pendingNotice = notice
+                                                selectedTab = 2
+                                            }
+                                        )
+                                        Spacer(Modifier.height(20.dp))
+                                        OngoingComplaintsSection(
+                                            complaints = ongoingComplaints,
+                                            onViewAll = {
+                                                pendingComplaintAction = ComplaintStartAction.ViewComplaints(occupantDocId)
+                                                selectedTab = 1
+                                            },
+                                            onComplaintClick = { complaint ->
+                                                pendingComplaintAction = ComplaintStartAction.OpenComplaint(complaint, occupantDocId)
+                                                selectedTab = 1
+                                            }
+                                        )
+                                        Spacer(Modifier.height(24.dp))
+                                    }
+                                }
+                                1 -> ComplaintsScreen(
+                                    occupantName = name,
+                                    occupantEmail = email,
+                                    occupantDocId = occupantDocId,
+                                    flatNumber = flatNumber,
+                                    flatId = flatId,
+                                    onMenuClick = { scope.launch { drawerState.open() } },
+                                    startAction = pendingComplaintAction
+                                )
+                                2 -> NoticeboardScreen(
+                                    onMenuClick = { scope.launch { drawerState.open() } },
+                                    initialNotice = pendingNotice
+                                )
+                                3 -> ProfileContent(
+                                    name = name,
+                                    email = email,
+                                    role = role,
+                                    empId = empId,
+                                    flatNumber = flatNumber,
+                                    occupantFrom = occupantFrom,
+                                    isCoordinator = isCoordinator,
+                                    onSignOut = { showLogoutConfirmation = true },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState())
+                                )
+                                else -> Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("Coming Soon", color = Color(0xFF999999), fontSize = 16.sp)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -322,16 +400,6 @@ private fun HomeHeader(name: String, greeting: String, flatNumber: String, onMen
                     Spacer(Modifier.width(4.dp))
                     Text(flatNumber.ifEmpty { "—" }, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
                 }
-            }
-            Spacer(Modifier.width(12.dp))
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.Person, null, tint = Color.White, modifier = Modifier.size(30.dp))
             }
         }
     }
@@ -667,7 +735,7 @@ private fun ShortcutItem(
 }
 
 @Composable
-private fun NewNoticesSection(notice: Notice?, onViewAll: () -> Unit) {
+private fun NewNoticesSection(notice: Notice?, onViewAll: () -> Unit, onNoticeClick: (Notice) -> Unit = {}) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -695,7 +763,7 @@ private fun NewNoticesSection(notice: Notice?, onViewAll: () -> Unit) {
             } else ""
         }
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().clickable { onNoticeClick(notice) },
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F4FF)),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -766,16 +834,12 @@ private fun NewNoticesSection(notice: Notice?, onViewAll: () -> Unit) {
 }
 
 private fun daysOpen(dateMillis: Long): String {
-    val days = (System.currentTimeMillis() - dateMillis) / (1000L * 60 * 60 * 24)
-    return when {
-        days <= 0L -> "Today"
-        days == 1L -> "1d open"
-        else -> "${days}d open"
-    }
+    val days = ((System.currentTimeMillis() - dateMillis) / (1000L * 60 * 60 * 24)).coerceAtLeast(1L)
+    return if (days == 1L) "Active since 1 day" else "Active since $days days"
 }
 
 @Composable
-private fun OngoingComplaintsSection(complaints: List<Complaint>, onViewAll: () -> Unit) {
+private fun OngoingComplaintsSection(complaints: List<Complaint>, onViewAll: () -> Unit, onComplaintClick: (Complaint) -> Unit = {}) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -809,7 +873,8 @@ private fun OngoingComplaintsSection(complaints: List<Complaint>, onViewAll: () 
                         title = complaint.problem.ifEmpty { complaint.category },
                         category = complaint.category,
                         status = complaint.status,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = { onComplaintClick(complaint) }
                     )
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
@@ -825,10 +890,11 @@ private fun ComplaintCard(
     title: String,
     category: String,
     status: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -851,11 +917,11 @@ private fun ComplaintCard(
 
 @Composable
 private fun StatusBadge(status: String) {
-    val (bg, fg) = when (status) {
-        "In Progress" -> Color(0xFFEEF2FF) to Color(0xFF3B4FD8)
-        "Assigned" -> Color(0xFFF5EEFF) to Color(0xFF7C3AED)
-        "Closed", "CLOSED" -> Color(0xFFECFDF5) to Color(0xFF059669)
-        "Pending", "OPEN" -> Color(0xFFFFF7ED) to Color(0xFFD97706)
+    val (bg, fg) = when (status.uppercase()) {
+        "OPEN" -> Color(0xFFFFF7ED) to Color(0xFFD97706)
+        "ASSIGNED" -> Color(0xFFE3F2FD) to Color(0xFF1565C0)
+        "COMPLETED" -> Color(0xFFE8F5E9) to Color(0xFF2E7D32)
+        "CLOSED" -> Color(0xFFFFEBEE) to Color(0xFFB71C1C)
         else -> Color(0xFFF5F5F5) to Color(0xFF616161)
     }
     Box(

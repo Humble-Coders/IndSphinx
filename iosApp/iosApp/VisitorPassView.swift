@@ -27,7 +27,7 @@ struct VisitorPassView: View {
                     passes: passes,
                     navyBlue: navyBlue,
                     backgroundGray: backgroundGray,
-                    onRequestTapped: { viewModel.onRequestPassTapped() },
+                    onRequestTapped: { viewModel.onRequestPassTapped(flatId: flatId) },
                     onPassSelected: { viewModel.onPassSelected($0) }
                 )
 

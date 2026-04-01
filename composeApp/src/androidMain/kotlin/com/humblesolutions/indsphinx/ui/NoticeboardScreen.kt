@@ -22,7 +22,6 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.NavigateNext
-import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -30,7 +29,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,9 +54,13 @@ private val NavyBlue = Color(0xFF1E2D6B)
 private val BackgroundGray = Color(0xFFF2F4F8)
 
 @Composable
-fun NoticeboardScreen(onMenuClick: () -> Unit) {
+fun NoticeboardScreen(onMenuClick: () -> Unit, initialNotice: Notice? = null) {
     val viewModel: NoticeboardViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(initialNotice) {
+        initialNotice?.let { viewModel.openNoticeDirectly(it) }
+    }
 
     when (val state = uiState) {
         is NoticeboardUiState.Loading -> {
@@ -74,6 +79,7 @@ fun NoticeboardScreen(onMenuClick: () -> Unit) {
             }
         }
         is NoticeboardUiState.Detail -> {
+            BackHandler { viewModel.onBackFromDetail() }
             Column(Modifier.fillMaxSize()) {
                 NoticeDetailHeader(onBack = { viewModel.onBackFromDetail() })
                 NoticeDetailContent(notice = state.notice)
@@ -116,11 +122,6 @@ private fun NoticeboardHeader(onMenuClick: () -> Unit, onBack: (() -> Unit)?) {
                 fontWeight = FontWeight.SemiBold,
                 color = Color(0xFF1A1A2E),
                 modifier = Modifier.weight(1f)
-            )
-            Icon(
-                Icons.Outlined.NotificationsNone, null,
-                tint = NavyBlue,
-                modifier = Modifier.size(24.dp)
             )
         }
     }

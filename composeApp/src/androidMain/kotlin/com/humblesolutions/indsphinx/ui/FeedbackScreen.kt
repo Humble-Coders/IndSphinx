@@ -1,5 +1,6 @@
 package com.humblesolutions.indsphinx.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -92,6 +93,7 @@ fun FeedbackScreen(
             }
         }
         is FeedbackUiState.SubmitForm -> {
+            BackHandler { viewModel.onBackFromForm() }
             Column(Modifier.fillMaxSize()) {
                 FeedbackHeader(title = "Submit Feedback", onBack = { viewModel.onBackFromForm() })
                 FeedbackFormContent(
@@ -111,6 +113,7 @@ fun FeedbackScreen(
             }
         }
         is FeedbackUiState.Detail -> {
+            BackHandler { viewModel.onBackFromDetail() }
             Column(Modifier.fillMaxSize()) {
                 FeedbackHeader(title = "Feedback Details", onBack = { viewModel.onBackFromDetail() })
                 FeedbackDetailContent(feedback = state.feedback)

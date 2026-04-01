@@ -7,6 +7,7 @@ class HomeViewModel: ObservableObject {
     private let userProfileRepository = BackendUserProfileRepository()
     private let noticeboardRepository = BackendNoticeboardRepository()
     private var isEnabledListener: ListenerRegistration?
+    private var occupantListener: ListenerRegistration?
     private var noticesListener: ListenerRegistration?
 
     enum State {
@@ -25,6 +26,7 @@ class HomeViewModel: ObservableObject {
 
     deinit {
         isEnabledListener?.remove()
+        occupantListener?.remove()
         noticesListener?.remove()
     }
 
@@ -61,6 +63,7 @@ class HomeViewModel: ObservableObject {
                 flatId: profile.flatId
             )
             startObservingEnabled(uid: user.uid)
+            startObservingOccupant(occupantDocId: profile.occupantDocId)
             startObservingNotices()
         } catch {
             try? authRepository.signOut()
@@ -74,6 +77,30 @@ class HomeViewModel: ObservableObject {
         noticesListener = noticeboardRepository.observeNotices { [weak self] notices in
             Task { @MainActor in
                 self?.latestNotice = notices.first
+            }
+        }
+    }
+
+    private func startObservingOccupant(occupantDocId: String) {
+        occupantListener?.remove()
+        occupantListener = userProfileRepository.observeOccupant(occupantDocId: occupantDocId) { [weak self] data in
+            Task { @MainActor in
+                guard let self, let data,
+                      case .ready(let name, let greeting, let email, let role, let empId,
+                                  let flatNumber, let occupantFrom, let isCoordinator,
+                                  let occupantDocId, let flatId) = self.state else { return }
+                self.state = .ready(
+                    name: data["Name"] as? String ?? name,
+                    greeting: greeting,
+                    email: email,
+                    role: role,
+                    empId: empId,
+                    flatNumber: data["FlatNumber"] as? String ?? flatNumber,
+                    occupantFrom: occupantFrom,
+                    isCoordinator: data["isCoordinator"] as? Bool ?? isCoordinator,
+                    occupantDocId: occupantDocId,
+                    flatId: data["flatId"] as? String ?? flatId
+                )
             }
         }
     }
@@ -96,6 +123,8 @@ class HomeViewModel: ObservableObject {
     func signOut() {
         isEnabledListener?.remove()
         isEnabledListener = nil
+        occupantListener?.remove()
+        occupantListener = nil
         noticesListener?.remove()
         noticesListener = nil
         try? authRepository.signOut()

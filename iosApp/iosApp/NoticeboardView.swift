@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NoticeboardView: View {
     let onMenuTap: () -> Void
+    var initialNotice: Notice? = nil
 
     @StateObject private var viewModel = NoticeboardViewModel()
 
@@ -34,6 +35,10 @@ struct NoticeboardView: View {
             }
         }
         .background(backgroundGray)
+        .onChange(of: initialNotice) { notice in
+            guard let notice else { return }
+            viewModel.openNoticeDirectly(notice)
+        }
     }
 }
 
@@ -55,9 +60,6 @@ private struct NoticeboardHeaderView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
                 Spacer()
-                Image(systemName: "bell")
-                    .font(.system(size: 20))
-                    .foregroundColor(navyBlue)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 16)

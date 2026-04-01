@@ -4,6 +4,13 @@ import FirebaseFirestore
 class BackendUserProfileRepository {
     private let db = Firestore.firestore()
 
+    func observeOccupant(occupantDocId: String, onChange: @escaping ([String: Any]?) -> Void) -> ListenerRegistration {
+        return db.collection("Occupants").document(occupantDocId)
+            .addSnapshotListener { snapshot, _ in
+                onChange(snapshot?.data())
+            }
+    }
+
     func observeIsEnabled(uid: String, onChange: @escaping (Bool) -> Void) -> ListenerRegistration {
         return db.collection("Users").document(uid)
             .addSnapshotListener { snapshot, _ in

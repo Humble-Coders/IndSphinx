@@ -27,7 +27,11 @@ class ComplaintsViewModel: ObservableObject {
 
     @Published var state: State = .landing
 
-    func onAddComplaintTapped() {
+    func onAddComplaintTapped(flatId: String) {
+        guard !flatId.isEmpty else {
+            state = .error("No flat allotted. Please contact admin.")
+            return
+        }
         state = .loadingTemplates
         templatesListener?.remove()
         templatesListener = templateRepo.observeTemplates { [weak self] templates in
@@ -163,6 +167,18 @@ class ComplaintsViewModel: ObservableObject {
 
     func dismissError() {
         state = .landing
+    }
+
+    func openComplaintDirectly(complaint: Complaint, occupantId: String) {
+        state = .complaintDetail(complaint, [complaint])
+        complaintsListener?.remove()
+        complaintsListener = complaintRepo.observeByOccupant(occupantId: occupantId) { [weak self] complaints in
+            guard let self else { return }
+            Task { @MainActor in
+                let refreshed = complaints.first { $0.id == complaint.id } ?? complaint
+                self.state = .complaintDetail(refreshed, complaints)
+            }
+        }
     }
 
     func onViewComplaintsTapped(occupantId: String) {

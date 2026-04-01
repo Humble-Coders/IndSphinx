@@ -20,6 +20,7 @@ import com.humblesolutions.indsphinx.repository.BackendComplaintTemplateReposito
 import com.humblesolutions.indsphinx.repository.BackendStorageRepository
 import com.humblesolutions.indsphinx.usecase.CloseComplaintUseCase
 import com.humblesolutions.indsphinx.usecase.SubmitComplaintUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -63,7 +64,11 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
     private var templatesJob: Job? = null
     private var complaintsJob: Job? = null
 
-    fun onAddComplaintClick() {
+    fun onAddComplaintClick(flatId: String) {
+        if (flatId.isBlank()) {
+            _uiState.value = ComplaintsUiState.Error("No flat allotted. Please contact admin.")
+            return
+        }
         _uiState.value = ComplaintsUiState.LoadingTemplates
         templatesJob?.cancel()
         templatesJob = viewModelScope.launch {
@@ -80,6 +85,7 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to load categories")
             }
         }
@@ -273,7 +279,23 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to load complaints")
+            }
+        }
+    }
+
+    fun openComplaintDirectly(complaint: Complaint, occupantId: String) {
+        _uiState.value = ComplaintsUiState.ComplaintDetail(complaint, listOf(complaint))
+        complaintsJob?.cancel()
+        complaintsJob = viewModelScope.launch {
+            try {
+                complaintRepo.observeByOccupant(occupantId).collect { complaints ->
+                    val refreshed = complaints.find { it.id == complaint.id } ?: complaint
+                    _uiState.value = ComplaintsUiState.ComplaintDetail(refreshed, complaints)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
             }
         }
     }

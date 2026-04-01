@@ -43,6 +43,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _latestNotice = MutableStateFlow<Notice?>(null)
     val latestNotice: StateFlow<Notice?> = _latestNotice.asStateFlow()
     private var enabledListenerJob: Job? = null
+    private var occupantListenerJob: Job? = null
 
     init {
         loadProfile()
@@ -70,6 +71,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     flatId = profile.flatId
                 )
                 startObservingEnabled(uid)
+                startObservingOccupant(profile.occupantDocId)
             } catch (e: Exception) {
                 authRepository.signOut()
                 _uiState.value = HomeUiState.AccessDenied(e.message ?: "Access denied.")
@@ -98,7 +100,29 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun signOut() = authRepository.signOut()
+    private fun startObservingOccupant(occupantDocId: String) {
+        occupantListenerJob?.cancel()
+        occupantListenerJob = viewModelScope.launch {
+            userProfileRepo.observeOccupant(occupantDocId).collect { data ->
+                val current = _uiState.value as? HomeUiState.Ready ?: return@collect
+                if (data == null) return@collect
+                _uiState.value = current.copy(
+                    name = data["Name"] as? String ?: current.name,
+                    flatNumber = data["FlatNumber"] as? String ?: current.flatNumber,
+                    flatId = data["flatId"] as? String ?: current.flatId,
+                    isCoordinator = data["isCoordinator"] as? Boolean ?: current.isCoordinator
+                )
+            }
+        }
+    }
+
+    fun signOut() {
+        occupantListenerJob?.cancel()
+        occupantListenerJob = null
+        enabledListenerJob?.cancel()
+        enabledListenerJob = null
+        authRepository.signOut()
+    }
 
     private fun greeting(): String {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)

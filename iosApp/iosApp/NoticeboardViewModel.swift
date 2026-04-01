@@ -35,6 +35,11 @@ class NoticeboardViewModel: ObservableObject {
         selectedNotice = notice
     }
 
+    func openNoticeDirectly(_ notice: Notice) {
+        let refreshed = notices.first { $0.id == notice.id } ?? notice
+        selectedNotice = refreshed
+    }
+
     func onBackFromDetail() {
         selectedNotice = nil
     }
