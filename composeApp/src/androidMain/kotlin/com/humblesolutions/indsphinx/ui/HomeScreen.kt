@@ -910,7 +910,9 @@ private fun ComplaintCard(
             Spacer(Modifier.height(2.dp))
             Text(category, fontSize = 12.sp, color = Color(0xFF888888))
             Spacer(Modifier.height(8.dp))
-            StatusBadge(status)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                StatusBadge(status)
+            }
         }
     }
 }

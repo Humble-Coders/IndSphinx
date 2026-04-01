@@ -757,7 +757,10 @@ private struct ComplaintCardView: View {
             Text(category)
                 .font(.system(size: 12))
                 .foregroundColor(Color(white: 0.53))
-            StatusBadgeView(status: status)
+            HStack {
+                Spacer()
+                StatusBadgeView(status: status)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
