@@ -178,6 +178,18 @@ struct HomeView: View {
         .onChange(of: viewModel.shouldSignOut) { denied in
             if denied { onSignOut() }
         }
+        .overlay {
+            if let due = viewModel.formDueStatus, due.isDue, !showCoordinatorForm {
+                FormDueOverlay(
+                    frequencyMonths: due.frequencyMonths,
+                    onFillForm: {
+                        viewModel.dismissFormDue()
+                        showCoordinatorForm = true
+                    },
+                    onDismiss: { viewModel.dismissFormDue() }
+                )
+            }
+        }
         .alert("Log Out", isPresented: $showLogoutConfirmation) {
             Button("Log Out", role: .destructive) {
                 viewModel.signOut()
@@ -512,15 +524,6 @@ private struct QuickShortcutsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "bolt")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color(red: 0.118, green: 0.176, blue: 0.42))
-                Text("Quick Shortcuts")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
-            }
-
             VStack(spacing: 12) {
                 HStack(spacing: 12) {
                     ShortcutItemView(
@@ -821,3 +824,100 @@ private struct StatusBadgeView: View {
             .cornerRadius(20)
     }
 }
+
+// MARK: - Form Due Dialog Overlay
+
+private struct FormDueOverlay: View {
+    let frequencyMonths: Int
+    let onFillForm: () -> Void
+    let onDismiss: () -> Void
+
+    private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
+
+    private var title: String {
+        switch frequencyMonths {
+        case 1:  return "Monthly Self Audit Required"
+        case 2:  return "Bi-Monthly Self Audit Required"
+        case 3:  return "Quarterly Self Audit Required"
+        case 6:  return "Semi-Annual Self Audit Required"
+        case 12: return "Annual Self Audit Required"
+        default: return "\(frequencyMonths)-Month Self Audit Required"
+        }
+    }
+
+    private var frequencyLabel: String {
+        frequencyMonths == 1 ? "every month" : "every \(frequencyMonths) months"
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Card
+                VStack(spacing: 16) {
+                    // Dismiss button
+                    HStack {
+                        Spacer()
+                        Button(action: onDismiss) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color(white: 0.6))
+                                .padding(6)
+                        }
+                    }
+
+                    // Icon
+                    ZStack {
+                        Circle()
+                            .fill(Color(red: 0.933, green: 0.941, blue: 0.98))
+                            .frame(width: 72, height: 72)
+                        Image(systemName: "checklist")
+                            .font(.system(size: 32))
+                            .foregroundColor(navyBlue)
+                    }
+
+                    // Text
+                    VStack(spacing: 8) {
+                        Text(title)
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(Color(red: 0.122, green: 0.161, blue: 0.216))
+                            .multilineTextAlignment(.center)
+                        Text("Please complete your flat maintenance\nself audit form.")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(white: 0.42))
+                            .multilineTextAlignment(.center)
+                        Text("Required \(frequencyLabel)")
+                            .font(.system(size: 13))
+                            .foregroundColor(Color(white: 0.61))
+                    }
+
+                    // Fill button
+                    Button(action: onFillForm) {
+                        Text("Fill Audit Form")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(navyBlue)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+
+                    // Remind later
+                    Button(action: onDismiss) {
+                        Text("Remind me later")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(white: 0.42))
+                    }
+                    .padding(.bottom, 4)
+                }
+                .padding(24)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .shadow(color: .black.opacity(0.18), radius: 24, x: 0, y: 8)
+                .padding(.horizontal, 32)
+            }
+        }
+    }
+}
+

@@ -6,6 +6,8 @@ class HomeViewModel: ObservableObject {
     private let authRepository = IOSAuthRepository()
     private let userProfileRepository = BackendUserProfileRepository()
     private let noticeboardRepository = BackendNoticeboardRepository()
+    private let configRepository = BackendConfigRepository()
+    private let coordinatorFormRepository = BackendCoordinatorFormRepository()
     private var isEnabledListener: ListenerRegistration?
     private var occupantListener: ListenerRegistration?
     private var noticesListener: ListenerRegistration?
@@ -19,6 +21,7 @@ class HomeViewModel: ObservableObject {
     @Published var state: State = .loading
     @Published var shouldSignOut: Bool = false
     @Published var latestNotice: Notice?
+    @Published var formDueStatus: (isDue: Bool, frequencyMonths: Int)? = nil
 
     init() {
         Task { await loadProfile() }
@@ -65,6 +68,7 @@ class HomeViewModel: ObservableObject {
             startObservingEnabled(uid: user.uid)
             startObservingOccupant(occupantDocId: profile.occupantDocId)
             startObservingNotices()
+            if profile.isCoordinator { await checkFormDue(occupantDocId: profile.occupantDocId) }
         } catch {
             try? authRepository.signOut()
             state = .accessDenied(reason: error.localizedDescription)
@@ -118,6 +122,29 @@ class HomeViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private func checkFormDue(occupantDocId: String) async {
+        guard let frequencyMonths = try? await configRepository.getFormFrequencyMonths() else {
+            print("[FormDueCheck] checkFormDue: failed to fetch frequencyMonths for occupant=\(occupantDocId)")
+            return
+        }
+        let lastDate = try? await coordinatorFormRepository.getLastFormSubmittedAt(occupantId: occupantDocId)
+        let isDue: Bool
+        if let last = lastDate {
+            print("[FormDueCheck] checkFormDue: last form submitted at \(last) for occupant=\(occupantDocId)")
+            let frequencySeconds = Double(frequencyMonths) * 30 * 24 * 60 * 60
+            isDue = Date().timeIntervalSince(last) >= frequencySeconds
+        } else {
+            print("[FormDueCheck] checkFormDue: no previous form found for occupant=\(occupantDocId)")
+            isDue = true
+        }
+        print("[FormDueCheck] checkFormDue: isDue=\(isDue), frequencyMonths=\(frequencyMonths) — dialog will\(isDue ? "" : " NOT") be shown")
+        formDueStatus = (isDue: isDue, frequencyMonths: frequencyMonths)
+    }
+
+    func dismissFormDue() {
+        formDueStatus = nil
     }
 
     func signOut() {

@@ -32,4 +32,13 @@ class BackendCoordinatorFormRepository {
         ]
         try await db.collection("forms").addDocument(data: data)
     }
+
+    func getLastFormSubmittedAt(occupantId: String) async throws -> Date? {
+        let query = try await db.collection("forms")
+            .whereField("occupantId", isEqualTo: occupantId)
+            .order(by: "submittedAt", descending: true)
+            .limit(to: 1)
+            .getDocuments()
+        return (query.documents.first?.data()["submittedAt"] as? Timestamp)?.dateValue()
+    }
 }

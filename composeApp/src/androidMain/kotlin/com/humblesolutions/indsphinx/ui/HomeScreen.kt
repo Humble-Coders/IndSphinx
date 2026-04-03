@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Numbers
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
@@ -77,6 +79,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.humblesolutions.indsphinx.viewmodel.HomeUiState
 import com.humblesolutions.indsphinx.viewmodel.HomeViewModel
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -97,6 +100,7 @@ fun HomeScreen(onSignOut: () -> Unit) {
     val viewModel: HomeViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val latestNotice by viewModel.latestNotice.collectAsStateWithLifecycle()
+    val formDueStatus by viewModel.formDueStatus.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf(0) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -108,6 +112,18 @@ fun HomeScreen(onSignOut: () -> Unit) {
 
     LaunchedEffect(uiState) {
         if (uiState is HomeUiState.AccessDenied) onSignOut()
+    }
+
+    val due = formDueStatus
+    if (due != null && due.isDue && overlay == HomeOverlay.None) {
+        FormDueDialog(
+            frequencyMonths = due.frequencyMonths,
+            onFillForm = {
+                viewModel.dismissFormDue()
+                overlay = HomeOverlay.CoordinatorForm
+            },
+            onDismiss = { viewModel.dismissFormDue() }
+        )
     }
 
     if (showLogoutConfirmation) {
@@ -670,11 +686,6 @@ private fun ProfileDetailRow(icon: ImageVector, label: String, value: String) {
 
 @Composable
 private fun QuickShortcutsSection(onAddComplaint: () -> Unit, onNoticeboard: () -> Unit = {}, onVisitorPass: () -> Unit = {}, onFeedback: () -> Unit = {}) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.FlashOn, null, tint = NavyBlue, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
-        Text("Quick Shortcuts", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color(0xFF1A1A2E))
-    }
     Spacer(Modifier.height(12.dp))
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -960,5 +971,106 @@ private fun StatusBadge(status: String) {
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
         Text(status, color = fg, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+// MARK: - Form Due Dialog
+
+@Composable
+private fun FormDueDialog(
+    frequencyMonths: Int,
+    onFillForm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val title = when (frequencyMonths) {
+        1 -> "Monthly Self Audit Required"
+        2 -> "Bi-Monthly Self Audit Required"
+        3 -> "Quarterly Self Audit Required"
+        6 -> "Semi-Annual Self Audit Required"
+        12 -> "Annual Self Audit Required"
+        else -> "$frequencyMonths-Month Self Audit Required"
+    }
+    val frequencyLabel = when (frequencyMonths) {
+        1 -> "every month"
+        else -> "every $frequencyMonths months"
+    }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(24.dp)
+        ) {
+            // Dismiss X
+            Icon(
+                Icons.Default.Close, contentDescription = "Dismiss",
+                tint = Color(0xFF9E9E9E),
+                modifier = Modifier
+                    .size(20.dp)
+                    .align(Alignment.TopEnd)
+                    .clickable { onDismiss() }
+            )
+
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Icon circle
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(36.dp))
+                        .background(Color(0xFFEEF0FA)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.StarBorder,
+                        contentDescription = null,
+                        tint = NavyBlue,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    title,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1F2937),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Please complete your flat maintenance self audit form.",
+                    fontSize = 14.sp,
+                    color = Color(0xFF6B7280),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Required $frequencyLabel",
+                    fontSize = 13.sp,
+                    color = Color(0xFF9CA3AF),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(24.dp))
+                Button(
+                    onClick = onFillForm,
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = NavyBlue),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Fill Audit Form", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Remind me later",
+                    fontSize = 14.sp,
+                    color = Color(0xFF6B7280),
+                    modifier = Modifier.clickable { onDismiss() }
+                )
+            }
+        }
     }
 }

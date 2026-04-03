@@ -1,12 +1,17 @@
 package com.humblesolutions.indsphinx.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.humblesolutions.indsphinx.model.Notice
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
+import com.humblesolutions.indsphinx.repository.BackendConfigRepository
+import com.humblesolutions.indsphinx.repository.BackendCoordinatorFormRepository
 import com.humblesolutions.indsphinx.repository.BackendNoticeboardRepository
 import com.humblesolutions.indsphinx.repository.BackendUserProfileRepository
+import com.humblesolutions.indsphinx.usecase.CheckFormDueUseCase
+import com.humblesolutions.indsphinx.usecase.FormDueStatus
 import com.humblesolutions.indsphinx.usecase.ValidateOccupantUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,12 +41,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val authRepository = AndroidAuthRepository()
     private val userProfileRepo = BackendUserProfileRepository()
     private val noticeboardRepo = BackendNoticeboardRepository()
+    private val checkFormDueUseCase = CheckFormDueUseCase(BackendConfigRepository(), BackendCoordinatorFormRepository())
     private val validateOccupantUseCase = ValidateOccupantUseCase(userProfileRepo)
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private val _latestNotice = MutableStateFlow<Notice?>(null)
     val latestNotice: StateFlow<Notice?> = _latestNotice.asStateFlow()
+    private val _formDueStatus = MutableStateFlow<FormDueStatus?>(null)
+    val formDueStatus: StateFlow<FormDueStatus?> = _formDueStatus.asStateFlow()
     private var enabledListenerJob: Job? = null
     private var occupantListenerJob: Job? = null
 
@@ -72,6 +80,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 startObservingEnabled(uid)
                 startObservingOccupant(profile.occupantDocId)
+                if (profile.isCoordinator) checkFormDue(profile.occupantDocId)
             } catch (e: Exception) {
                 authRepository.signOut()
                 _uiState.value = HomeUiState.AccessDenied(e.message ?: "Access denied.")
@@ -114,6 +123,32 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+    }
+
+    private fun checkFormDue(occupantDocId: String) {
+        viewModelScope.launch {
+            try {
+                val lastDate = BackendCoordinatorFormRepository().getLastFormSubmittedAt(occupantDocId)
+                if (lastDate == null) {
+                    Log.d(TAG, "checkFormDue: no previous form found for occupant=$occupantDocId")
+                } else {
+                    Log.d(TAG, "checkFormDue: last form submitted at ${java.util.Date(lastDate)} for occupant=$occupantDocId")
+                }
+                val status = checkFormDueUseCase.execute(occupantDocId, System.currentTimeMillis())
+                Log.d(TAG, "checkFormDue: isDue=${status.isDue}, frequencyMonths=${status.frequencyMonths} — dialog will${if (status.isDue) "" else " NOT"} be shown")
+                _formDueStatus.value = status
+            } catch (e: Exception) {
+                Log.e(TAG, "checkFormDue: error fetching form status for occupant=$occupantDocId", e)
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "FormDueCheck"
+    }
+
+    fun dismissFormDue() {
+        _formDueStatus.value = null
     }
 
     fun signOut() {

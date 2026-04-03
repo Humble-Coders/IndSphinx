@@ -3,6 +3,7 @@ package com.humblesolutions.indsphinx.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.messaging.FirebaseMessaging
 import com.humblesolutions.indsphinx.model.User
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
 import com.humblesolutions.indsphinx.repository.BackendUserProfileRepository
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 sealed class AuthUiState {
     object Idle : AuthUiState()
@@ -22,8 +24,9 @@ sealed class AuthUiState {
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val authRepository = AndroidAuthRepository()
+    private val userProfileRepository = BackendUserProfileRepository()
     private val signInUseCase = SignInUseCase(authRepository)
-    private val validateOccupantUseCase = ValidateOccupantUseCase(BackendUserProfileRepository())
+    private val validateOccupantUseCase = ValidateOccupantUseCase(userProfileRepository)
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -35,6 +38,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 val user = signInUseCase.execute(email, password)
                 try {
                     val profile = validateOccupantUseCase.execute(user.uid)
+                    try {
+                        val token = FirebaseMessaging.getInstance().token.await()
+                        userProfileRepository.updateFcmToken(user.uid, token)
+                    } catch (_: Exception) {}
                     _uiState.value = AuthUiState.Success(user, needsAgreement = !profile.hasAcceptedAgreement)
                 } catch (e: Exception) {
                     // Auth succeeded but profile check failed — sign out immediately

@@ -1,4 +1,5 @@
 import Foundation
+import FirebaseMessaging
 
 enum AuthUiState: Equatable {
     case idle
@@ -33,6 +34,9 @@ class AuthViewModel: ObservableObject {
                     uiState = .error(message: "Access is restricted to occupants and coordinators only.")
                     return
                 }
+                if let token = try? await Messaging.messaging().token() {
+                        try? await userProfileRepository.updateFcmToken(uid: user.uid, token: token)
+                    }
                 uiState = .success(email: user.email, needsAgreement: !profile.hasAcceptedAgreement)
             } catch let err as NSError where err.domain == "UserProfile" {
                 try? authRepository.signOut()

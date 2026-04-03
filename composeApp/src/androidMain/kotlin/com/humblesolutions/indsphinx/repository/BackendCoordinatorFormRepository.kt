@@ -2,6 +2,7 @@ package com.humblesolutions.indsphinx.repository
 
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.humblesolutions.indsphinx.model.MonthlyCheckForm
 import kotlinx.coroutines.tasks.await
 
@@ -24,5 +25,15 @@ class BackendCoordinatorFormRepository : CoordinatorFormRepository {
             "submittedAt" to FieldValue.serverTimestamp()
         )
         db.collection("forms").add(data).await()
+    }
+
+    override suspend fun getLastFormSubmittedAt(occupantId: String): Long? {
+        val query = db.collection("forms")
+            .whereEqualTo("occupantId", occupantId)
+            .orderBy("submittedAt", Query.Direction.DESCENDING)
+            .limit(1)
+            .get().await()
+        val ts = query.documents.firstOrNull()?.getTimestamp("submittedAt") ?: return null
+        return ts.toDate().time
     }
 }

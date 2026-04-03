@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 import FirebaseCore
 import FirebaseMessaging
 import UserNotifications
@@ -18,6 +19,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Messaging.messaging().apnsToken = deviceToken
+    }
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let token = fcmToken,
+              let uid = Auth.auth().currentUser?.uid else { return }
+        Task {
+            try? await BackendUserProfileRepository().updateFcmToken(uid: uid, token: token)
+        }
     }
 }
 
