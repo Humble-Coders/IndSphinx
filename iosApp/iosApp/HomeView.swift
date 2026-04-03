@@ -161,11 +161,11 @@ struct HomeView: View {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     showDocuments = true
                 },
+                isCoordinator: ready?.isCoordinator ?? false,
                 onNavigateToCoordinatorForm: {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     showCoordinatorForm = true
                 },
-                isCoordinator: ready?.isCoordinator ?? false,
                 onSignOut: {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     showLogoutConfirmation = true
@@ -280,6 +280,8 @@ private struct DrawerContentView: View {
     let onNavigateToFeedback: () -> Void
     let onNavigateToNoticeboard: () -> Void
     let onNavigateToDocuments: () -> Void
+    let isCoordinator: Bool
+    let onNavigateToCoordinatorForm: () -> Void
     let onSignOut: () -> Void
 
     private var safeAreaTop: CGFloat {
@@ -320,6 +322,9 @@ private struct DrawerContentView: View {
                 DrawerMenuItemView(systemIcon: "bell", label: "Notice Board", action: onNavigateToNoticeboard)
                 DrawerMenuItemView(systemIcon: "bubble.left", label: "Feedback", action: onNavigateToFeedback)
                 DrawerMenuItemView(systemIcon: "folder", label: "Documents", action: onNavigateToDocuments)
+                if isCoordinator {
+                    DrawerMenuItemView(systemIcon: "star", label: "Monthly Form", action: onNavigateToCoordinatorForm)
+                }
             }
             .frame(maxHeight: .infinity, alignment: .top)
             .background(Color.white)
