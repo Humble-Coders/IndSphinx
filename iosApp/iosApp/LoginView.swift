@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct LoginView: View {
-    let onAuthSuccess: () -> Void
+    let onAuthSuccess: (Bool) -> Void
     let onForgotPasswordTap: () -> Void
 
     @StateObject private var viewModel = AuthViewModel()
@@ -192,7 +192,7 @@ struct LoginView: View {
             }
         }
         .onChange(of: viewModel.uiState) { newState in
-            if case .success = newState { onAuthSuccess() }
+            if case .success(_, let needsAgreement) = newState { onAuthSuccess(needsAgreement) }
         }
     }
 }

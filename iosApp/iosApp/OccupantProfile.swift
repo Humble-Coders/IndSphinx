@@ -12,4 +12,5 @@ struct OccupantProfile {
     let isCoordinator: Bool
     let occupantDocId: String
     let flatId: String
+    let hasAcceptedAgreement: Bool
 }

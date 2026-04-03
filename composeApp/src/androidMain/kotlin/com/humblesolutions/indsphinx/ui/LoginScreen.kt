@@ -58,7 +58,7 @@ private val ErrorRed = Color(0xFFE53935)
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel,
-    onAuthSuccess: () -> Unit
+    onAuthSuccess: (needsAgreement: Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var email by remember { mutableStateOf("") }
@@ -67,8 +67,9 @@ fun LoginScreen(
     val isLoading = uiState is AuthUiState.Loading
 
     LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.Success) {
-            onAuthSuccess()
+        val s = uiState
+        if (s is AuthUiState.Success) {
+            onAuthSuccess(s.needsAgreement)
         }
     }
 

@@ -3,7 +3,7 @@ import Foundation
 enum AuthUiState: Equatable {
     case idle
     case loading
-    case success(email: String)
+    case success(email: String, needsAgreement: Bool)
     case error(message: String)
 }
 
@@ -33,7 +33,7 @@ class AuthViewModel: ObservableObject {
                     uiState = .error(message: "Access is restricted to occupants and coordinators only.")
                     return
                 }
-                uiState = .success(email: user.email)
+                uiState = .success(email: user.email, needsAgreement: !profile.hasAcceptedAgreement)
             } catch let err as NSError where err.domain == "UserProfile" {
                 try? authRepository.signOut()
                 uiState = .error(message: err.localizedDescription)

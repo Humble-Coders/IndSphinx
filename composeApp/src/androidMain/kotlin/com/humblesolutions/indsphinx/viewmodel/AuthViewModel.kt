@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 sealed class AuthUiState {
     object Idle : AuthUiState()
     object Loading : AuthUiState()
-    data class Success(val user: User) : AuthUiState()
+    data class Success(val user: User, val needsAgreement: Boolean = false) : AuthUiState()
     data class Error(val message: String) : AuthUiState()
 }
 
@@ -34,8 +34,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val user = signInUseCase.execute(email, password)
                 try {
-                    validateOccupantUseCase.execute(user.uid)
-                    _uiState.value = AuthUiState.Success(user)
+                    val profile = validateOccupantUseCase.execute(user.uid)
+                    _uiState.value = AuthUiState.Success(user, needsAgreement = !profile.hasAcceptedAgreement)
                 } catch (e: Exception) {
                     // Auth succeeded but profile check failed — sign out immediately
                     authRepository.signOut()

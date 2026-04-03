@@ -11,5 +11,6 @@ data class OccupantProfile(
     val occupantFrom: Long = 0L,
     val isCoordinator: Boolean = false,
     val occupantDocId: String = "",
-    val flatId: String = ""
+    val flatId: String = "",
+    val hasAcceptedAgreement: Boolean = false
 )

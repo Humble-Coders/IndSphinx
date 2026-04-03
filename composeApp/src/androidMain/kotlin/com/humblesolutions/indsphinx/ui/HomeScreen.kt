@@ -90,7 +90,7 @@ import kotlinx.coroutines.launch
 private val NavyBlue = Color(0xFF1E2D6B)
 private val BackgroundGray = Color(0xFFF2F4F8)
 
-private enum class HomeOverlay { None, VisitorPass, Feedback }
+private enum class HomeOverlay { None, VisitorPass, Feedback, Documents }
 
 @Composable
 fun HomeScreen(onSignOut: () -> Unit) {
@@ -191,6 +191,9 @@ fun HomeScreen(onSignOut: () -> Unit) {
                 occupantName = name,
                 onBack = { overlay = HomeOverlay.None }
             )
+            HomeOverlay.Documents -> DocumentsScreen(
+                onBack = { overlay = HomeOverlay.None }
+            )
             HomeOverlay.None -> ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
@@ -217,6 +220,10 @@ fun HomeScreen(onSignOut: () -> Unit) {
                             onNavigateToNoticeboard = {
                                 scope.launch { drawerState.close() }
                                 selectedTab = 2
+                            },
+                            onNavigateToDocuments = {
+                                scope.launch { drawerState.close() }
+                                overlay = HomeOverlay.Documents
                             },
                             onSignOut = { showLogoutConfirmation = true }
                         )
@@ -415,6 +422,7 @@ private fun HomeDrawerContent(
     onNavigateToVisitorPass: () -> Unit,
     onNavigateToFeedback: () -> Unit,
     onNavigateToNoticeboard: () -> Unit = {},
+    onNavigateToDocuments: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
@@ -446,6 +454,7 @@ private fun HomeDrawerContent(
             DrawerMenuItem(icon = Icons.Outlined.PersonAdd, label = "Visitor Pass", onClick = onNavigateToVisitorPass)
             DrawerMenuItem(icon = Icons.Outlined.NotificationsNone, label = "Notice Board", onClick = onNavigateToNoticeboard)
             DrawerMenuItem(icon = Icons.Outlined.ChatBubbleOutline, label = "Feedback", onClick = onNavigateToFeedback)
+            DrawerMenuItem(icon = Icons.Outlined.Info, label = "Documents", onClick = onNavigateToDocuments)
         }
 
         // Logout

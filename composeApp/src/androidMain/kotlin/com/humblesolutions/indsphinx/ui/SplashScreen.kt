@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessaging
+import com.humblesolutions.indsphinx.SplashDestination
 import com.humblesolutions.indsphinx.repository.BackendUserProfileRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
@@ -37,7 +38,7 @@ private val SplashTopColor = Color(0xFF2A3080)
 private val SplashBottomColor = Color(0xFF7B90C8)
 
 @Composable
-fun SplashScreen(onSplashComplete: (isLoggedIn: Boolean) -> Unit) {
+fun SplashScreen(onSplashComplete: (SplashDestination) -> Unit) {
     LaunchedEffect(Unit) {
         delay(2000)
         val currentUser = FirebaseAuth.getInstance().currentUser
@@ -46,16 +47,20 @@ fun SplashScreen(onSplashComplete: (isLoggedIn: Boolean) -> Unit) {
             val isEnabled = try { userProfileRepo.isUserEnabled(currentUser.uid) } catch (e: Exception) { true }
             if (!isEnabled) {
                 FirebaseAuth.getInstance().signOut()
-                onSplashComplete(false)
+                onSplashComplete(SplashDestination.NOT_LOGGED_IN)
                 return@LaunchedEffect
             }
             try {
                 val token = FirebaseMessaging.getInstance().token.await()
                 userProfileRepo.updateFcmToken(currentUser.uid, token)
             } catch (_: Exception) {}
-            onSplashComplete(true)
+            val hasAccepted = try {
+                val profile = userProfileRepo.getProfile(currentUser.uid)
+                profile.hasAcceptedAgreement
+            } catch (_: Exception) { true }
+            onSplashComplete(if (hasAccepted) SplashDestination.HOME else SplashDestination.NEEDS_AGREEMENT)
         } else {
-            onSplashComplete(false)
+            onSplashComplete(SplashDestination.NOT_LOGGED_IN)
         }
     }
 

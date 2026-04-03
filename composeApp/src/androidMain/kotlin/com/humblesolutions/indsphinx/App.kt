@@ -9,8 +9,11 @@ import androidx.navigation.compose.rememberNavController
 import com.humblesolutions.indsphinx.navigation.Screen
 import com.humblesolutions.indsphinx.ui.HomeScreen
 import com.humblesolutions.indsphinx.ui.LoginScreen
+import com.humblesolutions.indsphinx.ui.ResidentialFormScreen
 import com.humblesolutions.indsphinx.ui.SplashScreen
 import com.humblesolutions.indsphinx.viewmodel.AuthViewModel
+
+enum class SplashDestination { NOT_LOGGED_IN, NEEDS_AGREEMENT, HOME }
 
 @Composable
 @Preview
@@ -19,9 +22,13 @@ fun App() {
 
     NavHost(navController = navController, startDestination = Screen.Splash.route) {
         composable(Screen.Splash.route) {
-            SplashScreen(onSplashComplete = { isLoggedIn ->
-                val destination = if (isLoggedIn) Screen.Home.route else Screen.Login.route
-                navController.navigate(destination) {
+            SplashScreen(onSplashComplete = { destination ->
+                val route = when (destination) {
+                    SplashDestination.NOT_LOGGED_IN -> Screen.Login.route
+                    SplashDestination.NEEDS_AGREEMENT -> Screen.ResidentialForm.route
+                    SplashDestination.HOME -> Screen.Home.route
+                }
+                navController.navigate(route) {
                     popUpTo(Screen.Splash.route) { inclusive = true }
                 }
             })
@@ -30,9 +37,19 @@ fun App() {
             val viewModel: AuthViewModel = viewModel()
             LoginScreen(
                 viewModel = viewModel,
-                onAuthSuccess = {
-                    navController.navigate(Screen.Home.route) {
+                onAuthSuccess = { needsAgreement ->
+                    val route = if (needsAgreement) Screen.ResidentialForm.route else Screen.Home.route
+                    navController.navigate(route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        composable(Screen.ResidentialForm.route) {
+            ResidentialFormScreen(
+                onFormComplete = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.ResidentialForm.route) { inclusive = true }
                     }
                 }
             )

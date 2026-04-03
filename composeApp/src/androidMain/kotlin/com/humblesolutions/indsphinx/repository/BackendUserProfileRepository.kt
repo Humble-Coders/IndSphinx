@@ -57,7 +57,8 @@ class BackendUserProfileRepository : UserProfileRepository {
             occupantFrom = occupantDoc.getTimestamp("OccupantFrom")?.toDate()?.time ?: 0L,
             isCoordinator = occupantDoc.getBoolean("isCoordinator") ?: false,
             occupantDocId = occupantDoc.id,
-            flatId = occupantDoc.getString("flatId") ?: ""
+            flatId = occupantDoc.getString("flatId") ?: "",
+            hasAcceptedAgreement = occupantDoc.getBoolean("hasAcceptedAgreement") ?: false
         )
     }
 }

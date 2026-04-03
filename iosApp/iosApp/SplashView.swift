@@ -3,7 +3,7 @@ import FirebaseAuth
 import FirebaseMessaging
 
 struct SplashView: View {
-    let onSplashComplete: (Bool) -> Void
+    let onSplashComplete: (AppScreen) -> Void
 
     var body: some View {
         ZStack {
@@ -64,20 +64,26 @@ struct SplashView: View {
         .task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             guard let currentUser = Auth.auth().currentUser else {
-                onSplashComplete(false)
+                onSplashComplete(.login)
                 return
             }
             let userProfileRepo = BackendUserProfileRepository()
             let isEnabled = (try? await userProfileRepo.isUserEnabled(uid: currentUser.uid)) ?? true
             if !isEnabled {
                 try? Auth.auth().signOut()
-                onSplashComplete(false)
+                onSplashComplete(.login)
                 return
             }
             if let token = try? await Messaging.messaging().token() {
                 try? await userProfileRepo.updateFcmToken(uid: currentUser.uid, token: token)
             }
-            onSplashComplete(true)
+            let hasAccepted: Bool
+            if let profile = try? await userProfileRepo.getProfile(uid: currentUser.uid) {
+                hasAccepted = profile.hasAcceptedAgreement
+            } else {
+                hasAccepted = true
+            }
+            onSplashComplete(hasAccepted ? .home : .residentialForm)
         }
     }
 }

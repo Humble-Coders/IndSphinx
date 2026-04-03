@@ -3,6 +3,7 @@ import SwiftUI
 enum AppScreen {
     case splash
     case login
+    case residentialForm
     case home
 }
 
@@ -12,14 +13,18 @@ struct ContentView: View {
     var body: some View {
         switch currentScreen {
         case .splash:
-            SplashView { isLoggedIn in
-                currentScreen = isLoggedIn ? .home : .login
+            SplashView { destination in
+                currentScreen = destination
             }
         case .login:
             LoginView(
-                onAuthSuccess: { currentScreen = .home },
+                onAuthSuccess: { needsAgreement in
+                    currentScreen = needsAgreement ? .residentialForm : .home
+                },
                 onForgotPasswordTap: { /* TODO */ }
             )
+        case .residentialForm:
+            ResidentialFormView(onFormComplete: { currentScreen = .home })
         case .home:
             HomeView(onSignOut: { currentScreen = .login })
         }

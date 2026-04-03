@@ -63,7 +63,8 @@ class BackendUserProfileRepository {
             occupantFrom: occupantFromTimestamp?.dateValue(),
             isCoordinator: occupantData["isCoordinator"] as? Bool ?? false,
             occupantDocId: occupantDoc.documentID,
-            flatId: occupantData["flatId"] as? String ?? ""
+            flatId: occupantData["flatId"] as? String ?? "",
+            hasAcceptedAgreement: occupantData["hasAcceptedAgreement"] as? Bool ?? false
         )
     }
 }

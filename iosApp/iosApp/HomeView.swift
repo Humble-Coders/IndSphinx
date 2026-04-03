@@ -9,6 +9,7 @@ struct HomeView: View {
     @State private var ongoingComplaints: [Complaint] = []
     @State private var showVisitorPass = false
     @State private var showFeedback = false
+    @State private var showDocuments = false
     @State private var pendingComplaintAction: ComplaintStartAction? = nil
     @State private var pendingNotice: Notice? = nil
     @State private var showLogoutConfirmation = false
@@ -155,6 +156,10 @@ struct HomeView: View {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     selectedTab = 2
                 },
+                onNavigateToDocuments: {
+                    withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
+                    showDocuments = true
+                },
                 onSignOut: {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     showLogoutConfirmation = true
@@ -191,6 +196,9 @@ struct HomeView: View {
                 occupantName: ready?.name ?? "",
                 onBack: { showFeedback = false }
             )
+        }
+        .fullScreenCover(isPresented: $showDocuments) {
+            DocumentsView(onBack: { showDocuments = false })
         }
     }
 }
@@ -253,6 +261,7 @@ private struct DrawerContentView: View {
     let onNavigateToVisitorPass: () -> Void
     let onNavigateToFeedback: () -> Void
     let onNavigateToNoticeboard: () -> Void
+    let onNavigateToDocuments: () -> Void
     let onSignOut: () -> Void
 
     private var safeAreaTop: CGFloat {
@@ -292,6 +301,7 @@ private struct DrawerContentView: View {
                 DrawerMenuItemView(systemIcon: "person.badge.plus", label: "Visitor Pass", action: onNavigateToVisitorPass)
                 DrawerMenuItemView(systemIcon: "bell", label: "Notice Board", action: onNavigateToNoticeboard)
                 DrawerMenuItemView(systemIcon: "bubble.left", label: "Feedback", action: onNavigateToFeedback)
+                DrawerMenuItemView(systemIcon: "folder", label: "Documents", action: onNavigateToDocuments)
             }
             .frame(maxHeight: .infinity, alignment: .top)
             .background(Color.white)
