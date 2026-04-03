@@ -218,6 +218,15 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showDocuments) {
             DocumentsView(onBack: { showDocuments = false })
         }
+        .fullScreenCover(isPresented: $showCoordinatorForm) {
+            CoordinatorFormView(
+                occupantId: ready?.occupantDocId ?? "",
+                flatId: ready?.flatId ?? "",
+                coordinatorName: ready?.name ?? "",
+                flatNumber: ready?.flatNumber ?? "",
+                onBack: { showCoordinatorForm = false }
+            )
+        }
     }
 }
 

@@ -47,9 +47,8 @@ struct ResidentialFormView: View {
         let canSubmit = checked.count == responsibilities.count && termsAccepted && !isSubmitting
 
         VStack(spacing: 0) {
-            // Top bar
+            // Top bar: laid out in safe area; color extends under status bar / notch.
             ZStack {
-                primaryBlue
                 Text("Residential Acceptance Form")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(.white)
@@ -57,7 +56,10 @@ struct ResidentialFormView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 56)
-            .ignoresSafeArea(edges: .top)
+            .background {
+                primaryBlue
+                    .ignoresSafeArea(edges: .top)
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -216,7 +218,6 @@ struct ResidentialFormView: View {
             .background(Color.white)
         }
         .background(bgColor)
-        .ignoresSafeArea(edges: .top)
         .sheet(isPresented: Binding(
             get: { showTermsSheet },
             set: { viewModel.setShowTermsSheet($0) }
@@ -321,7 +322,6 @@ struct TermsSheetView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                primaryBlue
                 HStack {
                     Button(action: onClose) {
                         Image(systemName: "xmark")
@@ -337,9 +337,15 @@ struct TermsSheetView: View {
                     .foregroundColor(.white)
             }
             .frame(height: 52)
+            .background {
+                primaryBlue
+                    .ignoresSafeArea(edges: .top)
+            }
 
             HTMLView(html: html)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -352,6 +358,9 @@ struct HTMLView: UIViewRepresentable {
         let wv = WKWebView()
         wv.isOpaque = false
         wv.backgroundColor = .clear
+        wv.clipsToBounds = true
+        wv.scrollView.clipsToBounds = true
+        wv.scrollView.contentInsetAdjustmentBehavior = .automatic
         wv.scrollView.backgroundColor = .clear
         return wv
     }

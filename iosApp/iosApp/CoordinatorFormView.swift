@@ -36,9 +36,8 @@ struct CoordinatorFormView: View {
 
     private var mainForm: some View {
         VStack(spacing: 0) {
-            // Top bar
+            // Top bar: laid out in safe area; color extends under status bar / notch.
             ZStack {
-                navyBlue
                 HStack {
                     Button(action: onBack) {
                         Image(systemName: "xmark")
@@ -55,7 +54,12 @@ struct CoordinatorFormView: View {
                         .font(.system(size: 12)).foregroundColor(.white.opacity(0.7))
                 }
             }
-            .frame(height: 56).ignoresSafeArea(edges: .top)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background {
+                navyBlue
+                    .ignoresSafeArea(edges: .top)
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -179,7 +183,7 @@ struct CoordinatorFormView: View {
             }
             .background(Color.white)
         }
-        .background(bgColor).ignoresSafeArea(edges: .top)
+        .background(bgColor)
     }
 
     private var successView: some View {

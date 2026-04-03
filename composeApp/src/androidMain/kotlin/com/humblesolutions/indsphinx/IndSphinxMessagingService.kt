@@ -33,7 +33,7 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
         )
 
         val notification = NotificationCompat.Builder(this, "indsphinx_default")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

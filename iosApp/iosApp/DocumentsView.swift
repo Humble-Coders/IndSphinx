@@ -16,13 +16,13 @@ struct DocumentsView: View {
                 listView
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var listView: some View {
         VStack(spacing: 0) {
-            // Top bar
+            // Top bar: safe-area layout; bar color extends under status bar.
             ZStack {
-                navyBlue
                 HStack {
                     Button(action: onBack) {
                         Image(systemName: "xmark")
@@ -38,7 +38,10 @@ struct DocumentsView: View {
                     .foregroundColor(.white)
             }
             .frame(height: 52)
-            .ignoresSafeArea(edges: .top)
+            .background {
+                navyBlue
+                    .ignoresSafeArea(edges: .top)
+            }
 
             switch viewModel.state {
             case .loading:
@@ -86,7 +89,6 @@ struct DocumentsView: View {
             }
         }
         .background(Color(red: 0.949, green: 0.957, blue: 0.973))
-        .ignoresSafeArea(edges: .top)
     }
 }
 
@@ -97,30 +99,40 @@ struct DocumentDetailView: View {
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
 
     var body: some View {
+        // WKWebView has no intrinsic size; it must sit in a VStack with an explicit flexible
+        // height. safeAreaInset + UIViewRepresentable often leaves the web view at zero height.
         VStack(spacing: 0) {
-            ZStack {
-                navyBlue
-                HStack {
-                    Button(action: onBack) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
-                            .padding(8)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 8)
-                Text(document.name.isEmpty ? "Document" : document.name)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .padding(.horizontal, 52)
-            }
-            .frame(height: 52)
-            .ignoresSafeArea(edges: .top)
-
+            documentTopBar
             HTMLView(html: document.htmlContent)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .ignoresSafeArea(edges: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(red: 0.949, green: 0.957, blue: 0.973))
+    }
+
+    private var documentTopBar: some View {
+        ZStack {
+            HStack {
+                Button(action: onBack) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white)
+                        .padding(8)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            Text(document.name.isEmpty ? "Document" : document.name)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 52)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 52)
+        .background {
+            navyBlue
+                .ignoresSafeArea(edges: .top)
+        }
     }
 }
