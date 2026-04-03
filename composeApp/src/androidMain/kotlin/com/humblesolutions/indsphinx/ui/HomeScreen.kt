@@ -90,7 +90,7 @@ import kotlinx.coroutines.launch
 private val NavyBlue = Color(0xFF1E2D6B)
 private val BackgroundGray = Color(0xFFF2F4F8)
 
-private enum class HomeOverlay { None, VisitorPass, Feedback, Documents }
+private enum class HomeOverlay { None, VisitorPass, Feedback, Documents, CoordinatorForm }
 
 @Composable
 fun HomeScreen(onSignOut: () -> Unit) {
@@ -194,6 +194,13 @@ fun HomeScreen(onSignOut: () -> Unit) {
             HomeOverlay.Documents -> DocumentsScreen(
                 onBack = { overlay = HomeOverlay.None }
             )
+            HomeOverlay.CoordinatorForm -> CoordinatorFormScreen(
+                occupantId = occupantDocId,
+                flatId = flatId,
+                coordinatorName = name,
+                flatNumber = flatNumber,
+                onBack = { overlay = HomeOverlay.None }
+            )
             HomeOverlay.None -> ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
@@ -205,6 +212,7 @@ fun HomeScreen(onSignOut: () -> Unit) {
                         HomeDrawerContent(
                             name = name,
                             flatNumber = flatNumber,
+                            isCoordinator = isCoordinator,
                             onNavigateToComplaints = {
                                 scope.launch { drawerState.close() }
                                 selectedTab = 1
@@ -224,6 +232,10 @@ fun HomeScreen(onSignOut: () -> Unit) {
                             onNavigateToDocuments = {
                                 scope.launch { drawerState.close() }
                                 overlay = HomeOverlay.Documents
+                            },
+                            onNavigateToCoordinatorForm = {
+                                scope.launch { drawerState.close() }
+                                overlay = HomeOverlay.CoordinatorForm
                             },
                             onSignOut = { showLogoutConfirmation = true }
                         )
@@ -418,11 +430,13 @@ private fun HomeHeader(name: String, greeting: String, flatNumber: String, onMen
 private fun HomeDrawerContent(
     name: String,
     flatNumber: String,
+    isCoordinator: Boolean = false,
     onNavigateToComplaints: () -> Unit,
     onNavigateToVisitorPass: () -> Unit,
     onNavigateToFeedback: () -> Unit,
     onNavigateToNoticeboard: () -> Unit = {},
     onNavigateToDocuments: () -> Unit = {},
+    onNavigateToCoordinatorForm: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
@@ -455,6 +469,10 @@ private fun HomeDrawerContent(
             DrawerMenuItem(icon = Icons.Outlined.NotificationsNone, label = "Notice Board", onClick = onNavigateToNoticeboard)
             DrawerMenuItem(icon = Icons.Outlined.ChatBubbleOutline, label = "Feedback", onClick = onNavigateToFeedback)
             DrawerMenuItem(icon = Icons.Outlined.Info, label = "Documents", onClick = onNavigateToDocuments)
+            if (isCoordinator) {
+                HorizontalDivider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 4.dp))
+                DrawerMenuItem(icon = Icons.Outlined.StarBorder, label = "Monthly Form", onClick = onNavigateToCoordinatorForm)
+            }
         }
 
         // Logout

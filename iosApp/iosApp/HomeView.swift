@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var showVisitorPass = false
     @State private var showFeedback = false
     @State private var showDocuments = false
+    @State private var showCoordinatorForm = false
     @State private var pendingComplaintAction: ComplaintStartAction? = nil
     @State private var pendingNotice: Notice? = nil
     @State private var showLogoutConfirmation = false
@@ -160,6 +161,11 @@ struct HomeView: View {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     showDocuments = true
                 },
+                onNavigateToCoordinatorForm: {
+                    withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
+                    showCoordinatorForm = true
+                },
+                isCoordinator: ready?.isCoordinator ?? false,
                 onSignOut: {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     showLogoutConfirmation = true
