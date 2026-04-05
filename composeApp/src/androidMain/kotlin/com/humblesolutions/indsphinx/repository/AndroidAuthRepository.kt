@@ -24,4 +24,8 @@ class AndroidAuthRepository : AuthRepository {
     override fun getCurrentUser(): User? {
         return auth.currentUser?.let { User(uid = it.uid, email = it.email.orEmpty()) }
     }
+
+    suspend fun sendPasswordResetEmail(email: String) {
+        auth.sendPasswordResetEmail(email).await()
+    }
 }

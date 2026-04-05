@@ -22,6 +22,13 @@ sealed class AuthUiState {
     data class Error(val message: String) : AuthUiState()
 }
 
+sealed class PasswordResetUiState {
+    object Idle : PasswordResetUiState()
+    object Loading : PasswordResetUiState()
+    object Success : PasswordResetUiState()
+    data class Error(val message: String) : PasswordResetUiState()
+}
+
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val authRepository = AndroidAuthRepository()
     private val userProfileRepository = BackendUserProfileRepository()
@@ -30,6 +37,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+
+    private val _passwordResetState = MutableStateFlow<PasswordResetUiState>(PasswordResetUiState.Idle)
+    val passwordResetState: StateFlow<PasswordResetUiState> = _passwordResetState.asStateFlow()
 
     fun signIn(email: String, password: String) {
         viewModelScope.launch {
@@ -57,6 +67,36 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun resetState() {
         if (_uiState.value !is AuthUiState.Success) {
             _uiState.value = AuthUiState.Idle
+        }
+    }
+
+    fun sendPasswordReset(email: String) {
+        val trimmed = email.trim()
+        if (trimmed.isEmpty()) {
+            _passwordResetState.value = PasswordResetUiState.Error("Enter your employee ID or email first.")
+            return
+        }
+        viewModelScope.launch {
+            _passwordResetState.value = PasswordResetUiState.Loading
+            try {
+                authRepository.sendPasswordResetEmail(trimmed)
+                _passwordResetState.value = PasswordResetUiState.Success
+            } catch (e: Exception) {
+                _passwordResetState.value = PasswordResetUiState.Error(friendlyPasswordResetMessage(e))
+            }
+        }
+    }
+
+    fun clearPasswordResetState() {
+        _passwordResetState.value = PasswordResetUiState.Idle
+    }
+
+    private fun friendlyPasswordResetMessage(e: Exception): String {
+        val msg = e.message ?: return "Could not send reset email. Try again later."
+        return when {
+            "badly formatted" in msg || "invalid email" in msg.lowercase() -> "Invalid email format."
+            "network" in msg.lowercase() || "Unable to resolve host" in msg -> "Network error. Check your connection and try again."
+            else -> "Could not send reset email. Try again later."
         }
     }
 

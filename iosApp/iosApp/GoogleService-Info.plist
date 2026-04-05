@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.humblesolutions.indsphinx.IndSphinx</string>
+	<string>com.humblesolutions.indsphinx.IndSphinxTest</string>
 	<key>PROJECT_ID</key>
 	<string>ind-sphinx</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:297429261848:ios:2d7621c7fc6948a31ced6d</string>
+	<string>1:297429261848:ios:e545263d78d35bf31ced6d</string>
 </dict>
 </plist>

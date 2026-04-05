@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.humblesolutions.indsphinx.viewmodel.AuthUiState
 import com.humblesolutions.indsphinx.viewmodel.AuthViewModel
+import com.humblesolutions.indsphinx.viewmodel.PasswordResetUiState
 
 private val NavyBlue = Color(0xFF1E2D6B)
 private val BackgroundGray = Color(0xFFF2F4F8)
@@ -61,6 +63,7 @@ fun LoginScreen(
     onAuthSuccess: (needsAgreement: Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val passwordResetState by viewModel.passwordResetState.collectAsStateWithLifecycle()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -196,8 +199,19 @@ fun LoginScreen(
 
                     Spacer(Modifier.height(4.dp))
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                        TextButton(onClick = { /* TODO: forgot password */ }) {
-                            Text("Forgot Password?", color = NavyBlue, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        TextButton(
+                            onClick = { viewModel.sendPasswordReset(email.trim()) },
+                            enabled = !isLoading && passwordResetState !is PasswordResetUiState.Loading
+                        ) {
+                            if (passwordResetState is PasswordResetUiState.Loading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = NavyBlue,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("Forgot Password?", color = NavyBlue, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                            }
                         }
                     }
 
@@ -244,6 +258,38 @@ fun LoginScreen(
             }
 
             Spacer(Modifier.height(48.dp))
+        }
+
+        when (val rs = passwordResetState) {
+            is PasswordResetUiState.Success -> {
+                AlertDialog(
+                    onDismissRequest = { viewModel.clearPasswordResetState() },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.clearPasswordResetState() }) {
+                            Text("OK", color = NavyBlue, fontWeight = FontWeight.Medium)
+                        }
+                    },
+                    title = { Text("Check your email") },
+                    text = {
+                        Text(
+                            "If an account exists for that address, you'll receive instructions to reset your password."
+                        )
+                    }
+                )
+            }
+            is PasswordResetUiState.Error -> {
+                AlertDialog(
+                    onDismissRequest = { viewModel.clearPasswordResetState() },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.clearPasswordResetState() }) {
+                            Text("OK", color = NavyBlue, fontWeight = FontWeight.Medium)
+                        }
+                    },
+                    title = { Text("Reset password") },
+                    text = { Text(rs.message) }
+                )
+            }
+            else -> { }
         }
     }
 }

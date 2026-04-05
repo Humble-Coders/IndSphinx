@@ -4,11 +4,5 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>Used to capture photos and videos when submitting a complaint.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Used to record audio when capturing video for a complaint.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Used to attach photos and videos from your library to a complaint.</string>
 </dict>
 </plist>

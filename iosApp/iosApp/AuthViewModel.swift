@@ -8,12 +8,19 @@ enum AuthUiState: Equatable {
     case error(message: String)
 }
 
+enum PasswordResetFeedback: Equatable {
+    case sending
+    case success
+    case error(message: String)
+}
+
 @MainActor
 class AuthViewModel: ObservableObject {
     private let authRepository = IOSAuthRepository()
     private let userProfileRepository = BackendUserProfileRepository()
 
     @Published var uiState: AuthUiState = .idle
+    @Published var passwordResetFeedback: PasswordResetFeedback?
 
     func signIn(email: String, password: String) {
         guard !email.isEmpty else { uiState = .error(message: "Email cannot be blank"); return }
@@ -52,6 +59,34 @@ class AuthViewModel: ObservableObject {
             uiState = .idle
             return
         }
+    }
+
+    func sendPasswordReset(email: String) {
+        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            passwordResetFeedback = .error(message: "Enter your employee ID or email first.")
+            return
+        }
+        passwordResetFeedback = .sending
+        Task {
+            do {
+                try await authRepository.sendPasswordReset(email: trimmed)
+                passwordResetFeedback = .success
+            } catch {
+                passwordResetFeedback = .error(message: friendlyPasswordResetError(error))
+            }
+        }
+    }
+
+    func clearPasswordResetFeedback() {
+        passwordResetFeedback = nil
+    }
+
+    private func friendlyPasswordResetError(_ error: Error) -> String {
+        let msg = error.localizedDescription
+        if msg.contains("badly formatted") || msg.contains("invalid email") { return "Invalid email format." }
+        if msg.contains("network") || msg.contains("Internet") { return "Network error. Check your connection and try again." }
+        return "Could not send reset email. Try again later."
     }
 
     private func friendlyError(_ error: Error) -> String {

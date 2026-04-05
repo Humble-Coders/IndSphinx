@@ -20,8 +20,7 @@ struct ContentView: View {
             LoginView(
                 onAuthSuccess: { needsAgreement in
                     currentScreen = needsAgreement ? .residentialForm : .home
-                },
-                onForgotPasswordTap: { /* TODO */ }
+                }
             )
         case .residentialForm:
             ResidentialFormView(onFormComplete: { currentScreen = .home })

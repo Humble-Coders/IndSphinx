@@ -18,7 +18,7 @@ kotlin {
     iosSimulatorArm64()
 
     cocoapods {
-        version = "1.0.0"
+        version = "1.0.1"
         summary = "Shared KMP module"
         homepage = "https.example.com"
         ios.deploymentTarget = "14.0"

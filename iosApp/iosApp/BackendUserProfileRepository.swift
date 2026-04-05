@@ -26,7 +26,9 @@ class BackendUserProfileRepository {
     }
 
     func updateFcmToken(uid: String, token: String) async throws {
-        try await db.collection("Users").document(uid).updateData(["fcm_token": token])
+        print("[FCM-iOS] Firestore setData fcm_token for uid=\(uid)")
+        try await db.collection("Users").document(uid).setData(["fcm_token": token], merge: true)
+        print("[FCM-iOS] Firestore setData completed for uid=\(uid)")
     }
 
     func getProfile(uid: String) async throws -> OccupantProfile {

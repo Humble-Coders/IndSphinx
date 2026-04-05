@@ -23,6 +23,10 @@ class IOSAuthRepository {
         try auth.signOut()
     }
 
+    func sendPasswordReset(email: String) async throws {
+        try await auth.sendPasswordReset(withEmail: email)
+    }
+
     func getCurrentUser() -> AuthUser? {
         guard let user = auth.currentUser else { return nil }
         return AuthUser(uid: user.uid, email: user.email ?? "")

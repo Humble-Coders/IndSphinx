@@ -74,8 +74,18 @@ struct SplashView: View {
                 onSplashComplete(.login)
                 return
             }
-            if let token = try? await Messaging.messaging().token() {
-                try? await userProfileRepo.updateFcmToken(uid: currentUser.uid, token: token)
+            // Best-effort fallback: AppDelegate handles the primary token path.
+            print("[FCM-iOS] SplashView — requesting Messaging.token()")
+            do {
+                let token = try await Messaging.messaging().token()
+                if !token.isEmpty {
+                    print("[FCM-iOS] SplashView — got token prefix=\(String(token.prefix(20)))… saving to Firestore")
+                    try await userProfileRepo.updateFcmToken(uid: currentUser.uid, token: token)
+                } else {
+                    print("[FCM-iOS] SplashView — Messaging.token() returned empty string")
+                }
+            } catch {
+                print("[FCM-iOS] SplashView — Messaging.token() failed: \(error)")
             }
             let hasAccepted: Bool
             if let profile = try? await userProfileRepo.getProfile(uid: currentUser.uid) {

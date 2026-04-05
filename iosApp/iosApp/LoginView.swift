@@ -2,13 +2,19 @@ import SwiftUI
 
 struct LoginView: View {
     let onAuthSuccess: (Bool) -> Void
-    let onForgotPasswordTap: () -> Void
 
     @StateObject private var viewModel = AuthViewModel()
     @State private var email = ""
     @State private var password = ""
     @State private var passwordVisible = false
+    @State private var passwordResetAlert: PasswordResetAlertContent?
     @FocusState private var focusedField: Field?
+
+    private struct PasswordResetAlertContent: Identifiable {
+        let id = UUID()
+        let title: String
+        let message: String
+    }
 
     private enum Field { case email, password }
 
@@ -126,11 +132,18 @@ struct LoginView: View {
 
                             HStack {
                                 Spacer()
-                                Button(action: onForgotPasswordTap) {
-                                    Text("Forgot Password?")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(navyBlue)
+                                Button(action: { viewModel.sendPasswordReset(email: email) }) {
+                                    if case .sending = viewModel.passwordResetFeedback {
+                                        ProgressView()
+                                            .scaleEffect(0.85)
+                                            .frame(width: 20, height: 20)
+                                    } else {
+                                        Text("Forgot Password?")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(navyBlue)
+                                    }
                                 }
+                                .disabled(isLoading || viewModel.passwordResetFeedback == .sending)
                             }
                             .padding(.top, 10)
                             .padding(.bottom, 6)
@@ -193,6 +206,30 @@ struct LoginView: View {
         }
         .onChange(of: viewModel.uiState) { newState in
             if case .success(_, let needsAgreement) = newState { onAuthSuccess(needsAgreement) }
+        }
+        .onChange(of: viewModel.passwordResetFeedback) { feedback in
+            guard let feedback else { return }
+            switch feedback {
+            case .sending:
+                break
+            case .success:
+                passwordResetAlert = PasswordResetAlertContent(
+                    title: "Check your email",
+                    message: "If an account exists for that address, you'll receive instructions to reset your password."
+                )
+            case .error(let message):
+                passwordResetAlert = PasswordResetAlertContent(title: "Reset password", message: message)
+            }
+        }
+        .alert(item: $passwordResetAlert) { content in
+            Alert(
+                title: Text(content.title),
+                message: Text(content.message),
+                dismissButton: .default(Text("OK")) {
+                    passwordResetAlert = nil
+                    viewModel.clearPasswordResetFeedback()
+                }
+            )
         }
     }
 }
