@@ -13,4 +13,5 @@ struct OccupantProfile {
     let occupantDocId: String
     let flatId: String
     let hasAcceptedAgreement: Bool
+    let hasAcceptedRevisedForm: Bool
 }

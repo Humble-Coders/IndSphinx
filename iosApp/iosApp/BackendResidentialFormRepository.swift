@@ -38,13 +38,39 @@ class BackendResidentialFormRepository {
             "termsAccepted": termsAccepted,
             "submittedAt": FieldValue.serverTimestamp()
         ]
-        try await db.collection("agreements").addDocument(data: data)
-        try await db.collection("Occupants").document(occupantDocId)
-            .updateData(["hasAcceptedAgreement": true])
+        let batch = db.batch()
+        batch.setData(data, forDocument: db.collection("agreements").document())
+        batch.updateData(["hasAcceptedAgreement": true], forDocument: db.collection("Occupants").document(occupantDocId))
+        try await batch.commit()
     }
 
     func hasSubmittedAgreement(occupantDocId: String) async throws -> Bool {
         let doc = try await db.collection("Occupants").document(occupantDocId).getDocument()
         return doc.data()?["hasAcceptedAgreement"] as? Bool ?? false
+    }
+
+    func submitRevisedAgreement(
+        occupantDocId: String,
+        occupantName: String,
+        empId: String,
+        flatNumber: String,
+        flatId: String,
+        selectedAmenities: [String]
+    ) async throws {
+        let data: [String: Any] = [
+            "occupantId": occupantDocId,
+            "occupantName": occupantName,
+            "empId": empId,
+            "flatNumber": flatNumber,
+            "flatId": flatId,
+            "selectedAmenities": selectedAmenities,
+            "termsAccepted": true,
+            "submittedAt": FieldValue.serverTimestamp(),
+            "type": "REVISED"
+        ]
+        let batch = db.batch()
+        batch.setData(data, forDocument: db.collection("agreements").document())
+        batch.updateData(["hasAcceptedRevisedForm": true], forDocument: db.collection("Occupants").document(occupantDocId))
+        try await batch.commit()
     }
 }

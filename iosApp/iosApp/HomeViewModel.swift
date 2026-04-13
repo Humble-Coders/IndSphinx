@@ -3,14 +3,24 @@ import FirebaseFirestore
 
 @MainActor
 class HomeViewModel: ObservableObject {
+    enum RevisedFormState {
+        case hidden
+        case loading
+        case ready(commonAmenities: [String], roomAmenities: [String], selectedAmenities: Set<String>, isSubmitting: Bool)
+        case error(String)
+    }
+
     private let authRepository = IOSAuthRepository()
     private let userProfileRepository = BackendUserProfileRepository()
     private let noticeboardRepository = BackendNoticeboardRepository()
+    private let notificationRepository = BackendNotificationRepository()
+    private let formRepository = BackendResidentialFormRepository()
     private let configRepository = BackendConfigRepository()
     private let coordinatorFormRepository = BackendCoordinatorFormRepository()
     private var isEnabledListener: ListenerRegistration?
     private var occupantListener: ListenerRegistration?
     private var noticesListener: ListenerRegistration?
+    private var notificationsListener: ListenerRegistration?
 
     enum State {
         case loading
@@ -22,6 +32,13 @@ class HomeViewModel: ObservableObject {
     @Published var shouldSignOut: Bool = false
     @Published var latestNotice: Notice?
     @Published var formDueStatus: (isDue: Bool, frequencyMonths: Int)? = nil
+    @Published var notifications: [AppNotification] = []
+    var unreadCount: Int { notifications.filter { !$0.isRead }.count }
+    @Published var revisedFormState: RevisedFormState = .hidden
+    var showRevisedForm: Bool {
+        if case .hidden = revisedFormState { return false }
+        return true
+    }
 
     init() {
         Task { await loadProfile() }
@@ -31,6 +48,7 @@ class HomeViewModel: ObservableObject {
         isEnabledListener?.remove()
         occupantListener?.remove()
         noticesListener?.remove()
+        notificationsListener?.remove()
     }
 
     private func loadProfile() async {
@@ -68,6 +86,8 @@ class HomeViewModel: ObservableObject {
             startObservingEnabled(uid: user.uid)
             startObservingOccupant(occupantDocId: profile.occupantDocId)
             startObservingNotices()
+            startObservingNotifications(occupantId: user.uid)
+            if !profile.hasAcceptedRevisedForm { await loadRevisedFormAmenities(flatId: profile.flatId) }
             if profile.isCoordinator { await checkFormDue(occupantDocId: profile.occupantDocId) }
         } catch {
             try? authRepository.signOut()
@@ -154,7 +174,24 @@ class HomeViewModel: ObservableObject {
         occupantListener = nil
         noticesListener?.remove()
         noticesListener = nil
+        notificationsListener?.remove()
+        notificationsListener = nil
         try? authRepository.signOut()
+    }
+
+    private func startObservingNotifications(occupantId: String) {
+        notificationsListener?.remove()
+        notificationsListener = notificationRepository.observeNotifications(occupantId: occupantId) { [weak self] notifications in
+            Task { @MainActor in
+                self?.notifications = notifications
+            }
+        }
+    }
+
+    func markNotificationRead(notificationId: String) {
+        Task {
+            try? await notificationRepository.markAsRead(notificationId: notificationId)
+        }
     }
 
     private func greeting() -> String {
@@ -162,5 +199,43 @@ class HomeViewModel: ObservableObject {
         if hour < 12 { return "Good Morning" }
         if hour < 17 { return "Good Afternoon" }
         return "Good Evening"
+    }
+
+    private func loadRevisedFormAmenities(flatId: String) async {
+        revisedFormState = .loading
+        do {
+            let (common, room) = try await formRepository.getFlatAmenities(flatId: flatId)
+            revisedFormState = .ready(commonAmenities: common, roomAmenities: room, selectedAmenities: [], isSubmitting: false)
+        } catch {
+            revisedFormState = .error(error.localizedDescription)
+        }
+    }
+
+    func toggleRevisedAmenity(_ amenity: String) {
+        guard case .ready(let common, let room, var selected, let submitting) = revisedFormState else { return }
+        if selected.contains(amenity) { selected.remove(amenity) } else { selected.insert(amenity) }
+        revisedFormState = .ready(commonAmenities: common, roomAmenities: room, selectedAmenities: selected, isSubmitting: submitting)
+    }
+
+    func submitRevisedForm() {
+        guard case .ready(let common, let room, let selected, _) = revisedFormState,
+              !selected.isEmpty,
+              case .ready(let name, _, _, _, let empId, let flatNumber, _, _, let occupantDocId, let flatId) = state else { return }
+        revisedFormState = .ready(commonAmenities: common, roomAmenities: room, selectedAmenities: selected, isSubmitting: true)
+        Task {
+            do {
+                try await formRepository.submitRevisedAgreement(
+                    occupantDocId: occupantDocId,
+                    occupantName: name,
+                    empId: empId,
+                    flatNumber: flatNumber,
+                    flatId: flatId,
+                    selectedAmenities: Array(selected)
+                )
+                self.revisedFormState = .hidden
+            } catch {
+                self.revisedFormState = .ready(commonAmenities: common, roomAmenities: room, selectedAmenities: selected, isSubmitting: false)
+            }
+        }
     }
 }

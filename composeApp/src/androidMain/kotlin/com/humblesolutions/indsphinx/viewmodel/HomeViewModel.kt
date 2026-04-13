@@ -4,8 +4,13 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.humblesolutions.indsphinx.model.AppNotification
 import com.humblesolutions.indsphinx.model.Notice
+import com.humblesolutions.indsphinx.model.ResidentialAgreement
+import com.humblesolutions.indsphinx.repository.BackendResidentialFormRepository
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
+import com.humblesolutions.indsphinx.repository.BackendNotificationRepository
+import com.humblesolutions.indsphinx.usecase.ObserveNotificationsUseCase
 import com.humblesolutions.indsphinx.repository.BackendConfigRepository
 import com.humblesolutions.indsphinx.repository.BackendCoordinatorFormRepository
 import com.humblesolutions.indsphinx.repository.BackendNoticeboardRepository
@@ -15,10 +20,27 @@ import com.humblesolutions.indsphinx.usecase.FormDueStatus
 import com.humblesolutions.indsphinx.usecase.ValidateOccupantUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
+
+sealed class RevisedFormState {
+    object Hidden : RevisedFormState()
+    object Loading : RevisedFormState()
+    data class Ready(
+        val commonAmenities: List<String>,
+        val roomAmenities: List<String>,
+        val selectedAmenities: Set<String>,
+        val isSubmitting: Boolean
+    ) : RevisedFormState() {
+        val canSubmit get() = selectedAmenities.isNotEmpty() && !isSubmitting
+    }
+    data class Error(val message: String) : RevisedFormState()
+}
 
 sealed class HomeUiState {
     object Loading : HomeUiState()
@@ -41,8 +63,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val authRepository = AndroidAuthRepository()
     private val userProfileRepo = BackendUserProfileRepository()
     private val noticeboardRepo = BackendNoticeboardRepository()
+    private val notificationRepo = BackendNotificationRepository()
+    private val formRepo = BackendResidentialFormRepository()
     private val checkFormDueUseCase = CheckFormDueUseCase(BackendConfigRepository(), BackendCoordinatorFormRepository())
     private val validateOccupantUseCase = ValidateOccupantUseCase(userProfileRepo)
+    private val observeNotificationsUseCase = ObserveNotificationsUseCase(notificationRepo)
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -50,12 +75,84 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val latestNotice: StateFlow<Notice?> = _latestNotice.asStateFlow()
     private val _formDueStatus = MutableStateFlow<FormDueStatus?>(null)
     val formDueStatus: StateFlow<FormDueStatus?> = _formDueStatus.asStateFlow()
+    private val _notifications = MutableStateFlow<List<AppNotification>>(emptyList())
+    val notifications: StateFlow<List<AppNotification>> = _notifications.asStateFlow()
+    val unreadCount: StateFlow<Int> = _notifications
+        .map { list -> list.count { !it.isRead } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    private val _revisedFormState = MutableStateFlow<RevisedFormState>(RevisedFormState.Hidden)
+    val revisedFormState: StateFlow<RevisedFormState> = _revisedFormState.asStateFlow()
     private var enabledListenerJob: Job? = null
     private var occupantListenerJob: Job? = null
+    private var notificationsJob: Job? = null
 
     init {
         loadProfile()
         startObservingNotices()
+    }
+
+    fun startObservingNotifications(uid: String) {
+        notificationsJob?.cancel()
+        notificationsJob = viewModelScope.launch {
+            observeNotificationsUseCase.execute(uid).collect { list ->
+                _notifications.value = list
+            }
+        }
+    }
+
+    fun markNotificationRead(notificationId: String) {
+        viewModelScope.launch {
+            notificationRepo.markAsRead(notificationId)
+        }
+    }
+
+    private fun loadRevisedFormAmenities(flatId: String) {
+        viewModelScope.launch {
+            _revisedFormState.value = RevisedFormState.Loading
+            try {
+                val (common, room) = formRepo.getFlatAmenities(flatId)
+                _revisedFormState.value = RevisedFormState.Ready(
+                    commonAmenities = common,
+                    roomAmenities = room,
+                    selectedAmenities = emptySet(),
+                    isSubmitting = false
+                )
+            } catch (e: Exception) {
+                _revisedFormState.value = RevisedFormState.Error(e.message ?: "Failed to load amenities.")
+            }
+        }
+    }
+
+    fun toggleRevisedAmenity(amenity: String) {
+        val state = _revisedFormState.value as? RevisedFormState.Ready ?: return
+        val updated = if (amenity in state.selectedAmenities) state.selectedAmenities - amenity
+                      else state.selectedAmenities + amenity
+        _revisedFormState.value = state.copy(selectedAmenities = updated)
+    }
+
+    fun submitRevisedForm() {
+        val formState = _revisedFormState.value as? RevisedFormState.Ready ?: return
+        val profile = _uiState.value as? HomeUiState.Ready ?: return
+        if (!formState.canSubmit) return
+        _revisedFormState.value = formState.copy(isSubmitting = true)
+        viewModelScope.launch {
+            try {
+                val agreement = ResidentialAgreement(
+                    occupantId = profile.occupantDocId,
+                    occupantName = profile.name,
+                    empId = profile.empId,
+                    flatNumber = profile.flatNumber,
+                    flatId = profile.flatId,
+                    selectedAmenities = formState.selectedAmenities.toList(),
+                    termsAccepted = true,
+                    submittedAt = System.currentTimeMillis()
+                )
+                formRepo.submitRevisedAgreement(agreement)
+                _revisedFormState.value = RevisedFormState.Hidden
+            } catch (e: Exception) {
+                _revisedFormState.value = formState.copy(isSubmitting = false)
+            }
+        }
     }
 
     private fun loadProfile() {
@@ -80,6 +177,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 startObservingEnabled(uid)
                 startObservingOccupant(profile.occupantDocId)
+                startObservingNotifications(uid)
+                if (!profile.hasAcceptedRevisedForm) loadRevisedFormAmenities(profile.flatId)
                 if (profile.isCoordinator) checkFormDue(profile.occupantDocId)
             } catch (e: Exception) {
                 authRepository.signOut()
@@ -156,6 +255,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         occupantListenerJob = null
         enabledListenerJob?.cancel()
         enabledListenerJob = null
+        notificationsJob?.cancel()
+        notificationsJob = null
         authRepository.signOut()
     }
 

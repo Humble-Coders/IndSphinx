@@ -12,5 +12,6 @@ data class OccupantProfile(
     val isCoordinator: Boolean = false,
     val occupantDocId: String = "",
     val flatId: String = "",
-    val hasAcceptedAgreement: Boolean = false
+    val hasAcceptedAgreement: Boolean = false,
+    val hasAcceptedRevisedForm: Boolean = true
 )

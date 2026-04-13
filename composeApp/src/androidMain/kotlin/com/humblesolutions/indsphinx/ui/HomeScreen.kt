@@ -52,6 +52,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -71,6 +74,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.humblesolutions.indsphinx.model.AppNotification
 import com.humblesolutions.indsphinx.model.Complaint
 import com.humblesolutions.indsphinx.model.Notice
 import com.humblesolutions.indsphinx.repository.BackendComplaintRepository
@@ -79,6 +83,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.humblesolutions.indsphinx.viewmodel.HomeUiState
 import com.humblesolutions.indsphinx.viewmodel.HomeViewModel
+import com.humblesolutions.indsphinx.viewmodel.RevisedFormState
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,7 +98,7 @@ import kotlinx.coroutines.launch
 private val NavyBlue = Color(0xFF1E2D6B)
 private val BackgroundGray = Color(0xFFF2F4F8)
 
-private enum class HomeOverlay { None, VisitorPass, Feedback, Documents, CoordinatorForm }
+private enum class HomeOverlay { None, VisitorPass, Feedback, Documents, CoordinatorForm, Notifications }
 
 @Composable
 fun HomeScreen(onSignOut: () -> Unit) {
@@ -101,6 +106,46 @@ fun HomeScreen(onSignOut: () -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val latestNotice by viewModel.latestNotice.collectAsStateWithLifecycle()
     val formDueStatus by viewModel.formDueStatus.collectAsStateWithLifecycle()
+    val notifications by viewModel.notifications.collectAsStateWithLifecycle()
+    val unreadCount by viewModel.unreadCount.collectAsStateWithLifecycle()
+    val revisedFormState by viewModel.revisedFormState.collectAsStateWithLifecycle()
+
+    // Blocking check — must accept revised form before accessing home
+    when (val rfs = revisedFormState) {
+        is RevisedFormState.Loading -> {
+            Box(
+                modifier = Modifier.fillMaxSize().background(BackgroundGray),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = NavyBlue)
+            }
+            return
+        }
+        is RevisedFormState.Ready -> {
+            BackHandler { /* block back — form must be completed */ }
+            RevisedAmenitiesScreen(
+                commonAmenities = rfs.commonAmenities,
+                roomAmenities = rfs.roomAmenities,
+                selectedAmenities = rfs.selectedAmenities,
+                isSubmitting = rfs.isSubmitting,
+                canSubmit = rfs.canSubmit,
+                onToggleAmenity = { viewModel.toggleRevisedAmenity(it) },
+                onSubmit = { viewModel.submitRevisedForm() }
+            )
+            return
+        }
+        is RevisedFormState.Error -> {
+            Box(
+                modifier = Modifier.fillMaxSize().background(BackgroundGray),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(rfs.message, color = Color(0xFFE53935), fontSize = 14.sp)
+            }
+            return
+        }
+        RevisedFormState.Hidden -> Unit
+    }
+
     var selectedTab by remember { mutableStateOf(0) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -217,6 +262,11 @@ fun HomeScreen(onSignOut: () -> Unit) {
                 flatNumber = flatNumber,
                 onBack = { overlay = HomeOverlay.None }
             )
+            HomeOverlay.Notifications -> NotificationsScreen(
+                notifications = notifications,
+                onMarkRead = { viewModel.markNotificationRead(it) },
+                onBack = { overlay = HomeOverlay.None }
+            )
             HomeOverlay.None -> ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
@@ -312,7 +362,9 @@ fun HomeScreen(onSignOut: () -> Unit) {
                                         name = name,
                                         greeting = greeting,
                                         flatNumber = flatNumber,
-                                        onMenuClick = { scope.launch { drawerState.open() } }
+                                        unreadCount = unreadCount,
+                                        onMenuClick = { scope.launch { drawerState.open() } },
+                                        onNotificationsClick = { overlay = HomeOverlay.Notifications }
                                     )
                                     Column(
                                         modifier = Modifier
@@ -398,7 +450,14 @@ fun HomeScreen(onSignOut: () -> Unit) {
 // MARK: - Header
 
 @Composable
-private fun HomeHeader(name: String, greeting: String, flatNumber: String, onMenuClick: () -> Unit) {
+private fun HomeHeader(
+    name: String,
+    greeting: String,
+    flatNumber: String,
+    unreadCount: Int,
+    onMenuClick: () -> Unit,
+    onNotificationsClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -434,6 +493,35 @@ private fun HomeHeader(name: String, greeting: String, flatNumber: String, onMen
                     Icon(Icons.Outlined.Home, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(flatNumber.ifEmpty { "—" }, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable { onNotificationsClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.NotificationsNone, null,
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+                if (unreadCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE53935))
+                            .align(Alignment.TopEnd),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (unreadCount > 9) "9+" else unreadCount.toString(),
+                            color = Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -1074,3 +1162,296 @@ private fun FormDueDialog(
         }
     }
 }
+
+// MARK: - Revised Amenities Screen
+
+@Composable
+private fun RevisedAmenitiesScreen(
+    commonAmenities: List<String>,
+    roomAmenities: List<String>,
+    selectedAmenities: Set<String>,
+    isSubmitting: Boolean,
+    canSubmit: Boolean,
+    onToggleAmenity: (String) -> Unit,
+    onSubmit: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundGray)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(NavyBlue)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+            ) {
+                Text("Amenity Confirmation", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("Please review and reconfirm your amenities", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(Modifier.height(16.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Icon(Icons.Outlined.Info, null, tint = NavyBlue, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Our amenity list has been updated. Please select all amenities available in your accommodation to continue.",
+                        fontSize = 13.sp,
+                        color = Color(0xFF555555)
+                    )
+                }
+            }
+
+            if (commonAmenities.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                Text("Common Amenities", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A1A2E))
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column {
+                        commonAmenities.forEachIndexed { index, amenity ->
+                            if (index > 0) HorizontalDivider(color = Color(0xFFF0F0F0))
+                            AmenityCheckRow(
+                                amenity = amenity,
+                                checked = amenity in selectedAmenities,
+                                onToggle = { onToggleAmenity(amenity) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (roomAmenities.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                Text("Room Amenities", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A1A2E))
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column {
+                        roomAmenities.forEachIndexed { index, amenity ->
+                            if (index > 0) HorizontalDivider(color = Color(0xFFF0F0F0))
+                            AmenityCheckRow(
+                                amenity = amenity,
+                                checked = amenity in selectedAmenities,
+                                onToggle = { onToggleAmenity(amenity) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+        ) {
+            Button(
+                onClick = onSubmit,
+                enabled = canSubmit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = NavyBlue)
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Confirm Amenities", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AmenityCheckRow(amenity: String, checked: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { onToggle() },
+            colors = CheckboxDefaults.colors(checkedColor = NavyBlue)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(amenity, fontSize = 14.sp, color = Color(0xFF1A1A2E))
+    }
+}
+
+// MARK: - Notifications Screen
+
+@Composable
+private fun NotificationsScreen(
+    notifications: List<AppNotification>,
+    onMarkRead: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    val dateFormatter = remember { java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault()) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundGray)
+    ) {
+        // Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(NavyBlue)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Outlined.NavigateNext, null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clickable { onBack() }
+                )
+                Spacer(Modifier.width(12.dp))
+                Text("Notifications", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+
+        if (notifications.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Outlined.NotificationsNone, null, tint = Color(0xFFBBBBBB), modifier = Modifier.size(56.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text("No notifications yet", color = Color(0xFF9E9E9E), fontSize = 15.sp)
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+            ) {
+                Spacer(Modifier.height(16.dp))
+                notifications.forEach { notification ->
+                    NotificationItem(
+                        notification = notification,
+                        dateFormatter = dateFormatter,
+                        onMarkRead = { if (!notification.isRead) onMarkRead(notification.id) }
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationItem(
+    notification: AppNotification,
+    dateFormatter: java.text.SimpleDateFormat,
+    onMarkRead: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onMarkRead() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (notification.isRead) Color.White else Color(0xFFEEF2FF)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (notification.isRead) Color(0xFFF5F5F5) else NavyBlue.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.NotificationsNone, null,
+                    tint = if (notification.isRead) Color(0xFF9E9E9E) else NavyBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = notification.title,
+                    fontSize = 14.sp,
+                    fontWeight = if (notification.isRead) FontWeight.Normal else FontWeight.SemiBold,
+                    color = Color(0xFF1A1A2E)
+                )
+                if (notification.message.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = notification.message,
+                        fontSize = 13.sp,
+                        color = Color(0xFF555555)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = if (notification.createdAt > 0L)
+                        dateFormatter.format(java.util.Date(notification.createdAt))
+                    else "",
+                    fontSize = 11.sp,
+                    color = Color(0xFF9E9E9E)
+                )
+            }
+            if (!notification.isRead) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(NavyBlue)
+                )
+            }
+        }
+    }
+}
+

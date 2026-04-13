@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var pendingComplaintAction: ComplaintStartAction? = nil
     @State private var pendingNotice: Notice? = nil
     @State private var showLogoutConfirmation = false
+    @State private var showNotifications = false
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
     private let backgroundGray = Color(red: 0.949, green: 0.957, blue: 0.973)
@@ -35,7 +36,9 @@ struct HomeView: View {
                         name: ready?.name ?? "",
                         greeting: ready?.greeting ?? "",
                         flatNumber: ready?.flatNumber ?? "",
-                        onMenuTap: { isDrawerOpen = true }
+                        unreadCount: viewModel.unreadCount,
+                        onMenuTap: { isDrawerOpen = true },
+                        onNotificationsTap: { showNotifications = true }
                     )
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 20) {
@@ -227,6 +230,17 @@ struct HomeView: View {
                 onBack: { showCoordinatorForm = false }
             )
         }
+        .fullScreenCover(isPresented: $showNotifications) {
+            NotificationsView(
+                notifications: viewModel.notifications,
+                onMarkRead: { viewModel.markNotificationRead(notificationId: $0) },
+                onBack: { showNotifications = false }
+            )
+        }
+        .fullScreenCover(isPresented: .constant(viewModel.showRevisedForm)) {
+            RevisedAmenitiesView(viewModel: viewModel)
+                .interactiveDismissDisabled(true)
+        }
     }
 }
 
@@ -237,7 +251,9 @@ private struct HomeHeaderView: View {
     let name: String
     let greeting: String
     let flatNumber: String
+    let unreadCount: Int
     let onMenuTap: () -> Void
+    let onNotificationsTap: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -268,6 +284,25 @@ private struct HomeHeaderView: View {
 
             Spacer()
 
+            Button(action: onNotificationsTap) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell")
+                        .font(.system(size: 22))
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                    if unreadCount > 0 {
+                        ZStack {
+                            Circle()
+                                .fill(Color(red: 0.898, green: 0.224, blue: 0.208))
+                                .frame(width: 16, height: 16)
+                            Text(unreadCount > 9 ? "9+" : "\(unreadCount)")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .offset(x: 4, y: -4)
+                    }
+                }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
@@ -935,3 +970,301 @@ private struct FormDueOverlay: View {
     }
 }
 
+// MARK: - Notifications Screen
+
+struct NotificationsView: View {
+    let notifications: [AppNotification]
+    let onMarkRead: (String) -> Void
+    let onBack: () -> Void
+
+    private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
+    private let backgroundGray = Color(red: 0.949, green: 0.957, blue: 0.973)
+
+    private var dateFormatter: DateFormatter {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMM dd, hh:mm a"
+        return fmt
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 12) {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 20))
+                        .foregroundColor(.white)
+                }
+                Text("Notifications")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(navyBlue.ignoresSafeArea(edges: .top))
+
+            if notifications.isEmpty {
+                Spacer()
+                VStack(spacing: 12) {
+                    Image(systemName: "bell.slash")
+                        .font(.system(size: 48))
+                        .foregroundColor(Color(white: 0.73))
+                    Text("No notifications yet")
+                        .font(.system(size: 15))
+                        .foregroundColor(Color(white: 0.62))
+                }
+                Spacer()
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 10) {
+                        ForEach(notifications) { notification in
+                            NotificationItemView(
+                                notification: notification,
+                                navyBlue: navyBlue,
+                                dateFormatter: dateFormatter,
+                                onTap: {
+                                    if !notification.isRead {
+                                        onMarkRead(notification.id)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
+                }
+            }
+        }
+        .background(backgroundGray.ignoresSafeArea())
+    }
+}
+
+private struct NotificationItemView: View {
+    let notification: AppNotification
+    let navyBlue: Color
+    let dateFormatter: DateFormatter
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: 12) {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(notification.isRead ? Color(white: 0.96) : navyBlue.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                    .overlay {
+                        Image(systemName: "bell")
+                            .font(.system(size: 18))
+                            .foregroundColor(notification.isRead ? Color(white: 0.62) : navyBlue)
+                    }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(notification.title)
+                        .font(.system(size: 14, weight: notification.isRead ? .regular : .semibold))
+                        .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                        .multilineTextAlignment(.leading)
+                    if !notification.message.isEmpty {
+                        Text(notification.message)
+                            .font(.system(size: 13))
+                            .foregroundColor(Color(white: 0.33))
+                            .multilineTextAlignment(.leading)
+                    }
+                    Text(dateFormatter.string(from: notification.createdAt))
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(white: 0.62))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if !notification.isRead {
+                    Circle()
+                        .fill(navyBlue)
+                        .frame(width: 8, height: 8)
+                        .padding(.top, 6)
+                }
+            }
+            .padding(14)
+            .background(notification.isRead ? Color.white : Color(red: 0.933, green: 0.945, blue: 1.0))
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+
+// MARK: - Revised Amenities Screen
+
+struct RevisedAmenitiesView: View {
+    @ObservedObject var viewModel: HomeViewModel
+
+    private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
+    private let backgroundGray = Color(red: 0.949, green: 0.957, blue: 0.973)
+
+    private var commonAmenities: [String] {
+        if case .ready(let common, _, _, _) = viewModel.revisedFormState { return common }
+        return []
+    }
+    private var roomAmenities: [String] {
+        if case .ready(_, let room, _, _) = viewModel.revisedFormState { return room }
+        return []
+    }
+    private var selectedAmenities: Set<String> {
+        if case .ready(_, _, let selected, _) = viewModel.revisedFormState { return selected }
+        return []
+    }
+    private var isSubmitting: Bool {
+        if case .ready(_, _, _, let submitting) = viewModel.revisedFormState { return submitting }
+        return false
+    }
+    private var canSubmit: Bool { !selectedAmenities.isEmpty && !isSubmitting }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Amenity Confirmation")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.white)
+                Text("Please review and reconfirm your amenities")
+                    .font(.system(size: 13))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(navyBlue.ignoresSafeArea(edges: .top))
+
+            if case .loading = viewModel.revisedFormState {
+                Spacer()
+                ProgressView().tint(navyBlue)
+                Spacer()
+            } else if case .error(let msg) = viewModel.revisedFormState {
+                Spacer()
+                Text(msg).font(.system(size: 14)).foregroundColor(.red).padding()
+                Spacer()
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Info card
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 18))
+                                .foregroundColor(navyBlue)
+                            Text("Our amenity list has been updated. Please select all amenities available in your accommodation to continue.")
+                                .font(.system(size: 13))
+                                .foregroundColor(Color(white: 0.33))
+                        }
+                        .padding(14)
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+
+                        if !commonAmenities.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Common Amenities")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                                VStack(spacing: 0) {
+                                    ForEach(Array(commonAmenities.enumerated()), id: \.offset) { index, amenity in
+                                        if index > 0 { Divider().padding(.horizontal, 16) }
+                                        RevisedAmenityRowView(
+                                            amenity: amenity,
+                                            checked: selectedAmenities.contains(amenity),
+                                            navyBlue: navyBlue,
+                                            onToggle: { viewModel.toggleRevisedAmenity(amenity) }
+                                        )
+                                    }
+                                }
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+                            }
+                        }
+
+                        if !roomAmenities.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Room Amenities")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                                VStack(spacing: 0) {
+                                    ForEach(Array(roomAmenities.enumerated()), id: \.offset) { index, amenity in
+                                        if index > 0 { Divider().padding(.horizontal, 16) }
+                                        RevisedAmenityRowView(
+                                            amenity: amenity,
+                                            checked: selectedAmenities.contains(amenity),
+                                            navyBlue: navyBlue,
+                                            onToggle: { viewModel.toggleRevisedAmenity(amenity) }
+                                        )
+                                    }
+                                }
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
+                }
+                .background(backgroundGray)
+            }
+
+            // Submit button
+            Button(action: { viewModel.submitRevisedForm() }) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(canSubmit ? navyBlue : Color(white: 0.8))
+                        .frame(height: 50)
+                    if isSubmitting {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Confirm Amenities")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            .disabled(!canSubmit)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(Color.white)
+        }
+        .background(backgroundGray.ignoresSafeArea())
+    }
+}
+
+private struct RevisedAmenityRowView: View {
+    let amenity: String
+    let checked: Bool
+    let navyBlue: Color
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(checked ? navyBlue : Color(white: 0.73), lineWidth: 1.5)
+                        .frame(width: 20, height: 20)
+                    if checked {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(navyBlue)
+                            .frame(width: 20, height: 20)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                Text(amenity)
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
+    }
+}

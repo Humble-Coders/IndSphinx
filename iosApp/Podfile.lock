@@ -1448,7 +1448,7 @@ PODS:
   - nanopb/encode (3.30910.0)
   - PromisesObjC (2.4.0)
   - RecaptchaInterop (101.0.0)
-  - shared (1.0.0)
+  - shared (1.0.1)
 
 DEPENDENCIES:
   - Firebase/Auth
@@ -1523,7 +1523,7 @@ SPEC CHECKSUMS:
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
-  shared: 8fe4fcd6e69a738a90360e3737ce04e26a8a765b
+  shared: 2acc7bf11964ddb4b58a553dcbf03645fe40c22b
 
 PODFILE CHECKSUM: 3f3164d298ba16b931bbbfc5062b25edcfb6f5c4
 

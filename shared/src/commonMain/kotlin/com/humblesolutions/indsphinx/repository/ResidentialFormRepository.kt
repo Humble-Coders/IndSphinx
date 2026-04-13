@@ -7,4 +7,5 @@ interface ResidentialFormRepository {
     suspend fun getTermsAndConditions(): String
     suspend fun submitAgreement(agreement: ResidentialAgreement)
     suspend fun hasSubmittedAgreement(occupantDocId: String): Boolean
+    suspend fun submitRevisedAgreement(agreement: ResidentialAgreement)
 }

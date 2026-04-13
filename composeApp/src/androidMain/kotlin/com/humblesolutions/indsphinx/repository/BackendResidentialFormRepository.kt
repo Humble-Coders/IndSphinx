@@ -40,13 +40,32 @@ class BackendResidentialFormRepository : ResidentialFormRepository {
             "termsAccepted" to agreement.termsAccepted,
             "submittedAt" to FieldValue.serverTimestamp()
         )
-        db.collection("agreements").add(data).await()
-        db.collection("Occupants").document(agreement.occupantId)
-            .update("hasAcceptedAgreement", true).await()
+        val batch = db.batch()
+        batch.set(db.collection("agreements").document(), data)
+        batch.update(db.collection("Occupants").document(agreement.occupantId), "hasAcceptedAgreement", true)
+        batch.commit().await()
     }
 
     override suspend fun hasSubmittedAgreement(occupantDocId: String): Boolean {
         val doc = db.collection("Occupants").document(occupantDocId).get().await()
         return doc.getBoolean("hasAcceptedAgreement") ?: false
+    }
+
+    override suspend fun submitRevisedAgreement(agreement: ResidentialAgreement) {
+        val data = mapOf(
+            "occupantId" to agreement.occupantId,
+            "occupantName" to agreement.occupantName,
+            "empId" to agreement.empId,
+            "flatNumber" to agreement.flatNumber,
+            "flatId" to agreement.flatId,
+            "selectedAmenities" to agreement.selectedAmenities,
+            "termsAccepted" to true,
+            "submittedAt" to FieldValue.serverTimestamp(),
+            "type" to "REVISED"
+        )
+        val batch = db.batch()
+        batch.set(db.collection("agreements").document(), data)
+        batch.update(db.collection("Occupants").document(agreement.occupantId), "hasAcceptedRevisedForm", true)
+        batch.commit().await()
     }
 }
