@@ -1,5 +1,6 @@
 package com.humblesolutions.indsphinx.repository
 
+import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -13,20 +14,26 @@ class BackendNotificationRepository : NotificationRepository {
     private val db = FirebaseFirestore.getInstance()
 
     override fun observeNotifications(occupantId: String): Flow<List<AppNotification>> = callbackFlow {
-        val registration = db.collection("Notifications")
-            .whereEqualTo("occupantId", occupantId)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
+        Log.d(TAG, "observeNotifications: listen start recipientAuthUid=$occupantId (collection=notifications)")
+        val registration = db.collection("notifications")
+            .whereEqualTo("recipientAuthUid", occupantId)
+            .orderBy("sentAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null || snapshot == null) {
+                    Log.e(TAG, "observeNotifications: snapshot error (recipientAuthUid=$occupantId)", error)
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
+                Log.d(
+                    TAG,
+                    "observeNotifications: snapshot size=${snapshot.size()} recipientAuthUid=$occupantId"
+                )
                 val notifications = snapshot.documents.mapNotNull { doc ->
                     val title = doc.getString("title") ?: return@mapNotNull null
-                    val message = doc.getString("message") ?: ""
+                    val message = doc.getString("body") ?: ""
                     val isRead = doc.getBoolean("isRead") ?: false
-                    val createdAt = (doc.get("createdAt") as? Timestamp)?.toDate()?.time ?: 0L
-                    val type = doc.getString("type") ?: ""
+                    val createdAt = (doc.get("sentAt") as? Timestamp)?.toDate()?.time ?: 0L
+                    val type = doc.getString("source") ?: ""
                     AppNotification(
                         id = doc.id,
                         occupantId = occupantId,
@@ -43,7 +50,12 @@ class BackendNotificationRepository : NotificationRepository {
     }
 
     override suspend fun markAsRead(notificationId: String) {
-        db.collection("Notifications").document(notificationId)
+        Log.d(TAG, "markAsRead: notificationId=$notificationId (collection=notifications)")
+        db.collection("notifications").document(notificationId)
             .update("isRead", true).await()
+    }
+
+    private companion object {
+        private const val TAG = "NotificationsFlow"
     }
 }

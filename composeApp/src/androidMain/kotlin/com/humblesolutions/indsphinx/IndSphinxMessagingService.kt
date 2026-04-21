@@ -3,6 +3,7 @@ package com.humblesolutions.indsphinx
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -16,6 +17,7 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        Log.d(TAG, "onNewToken: uid=$uid tokenLength=${token.length}")
         CoroutineScope(Dispatchers.IO).launch {
             try { BackendUserProfileRepository().updateFcmToken(uid, token) } catch (_: Exception) {}
         }
@@ -24,6 +26,10 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val title = message.notification?.title ?: return
         val body = message.notification?.body ?: ""
+        Log.d(
+            TAG,
+            "onMessageReceived: title=$title bodyLength=${body.length} dataKeys=${message.data.keys}"
+        )
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -43,5 +49,9 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
 
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(System.currentTimeMillis().toInt(), notification)
+    }
+
+    private companion object {
+        private const val TAG = "NotificationsFlow"
     }
 }

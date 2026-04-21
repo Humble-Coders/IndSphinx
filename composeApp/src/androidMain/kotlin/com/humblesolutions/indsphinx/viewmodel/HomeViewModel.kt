@@ -94,7 +94,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun startObservingNotifications(uid: String) {
         notificationsJob?.cancel()
         notificationsJob = viewModelScope.launch {
+            Log.d(NOTIFICATIONS_TAG, "startObservingNotifications: uid=$uid")
             observeNotificationsUseCase.execute(uid).collect { list ->
+                Log.d(NOTIFICATIONS_TAG, "notifications updated: size=${list.size}")
                 _notifications.value = list
             }
         }
@@ -244,6 +246,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "FormDueCheck"
+        private const val NOTIFICATIONS_TAG = "NotificationsFlow"
     }
 
     fun dismissFormDue() {

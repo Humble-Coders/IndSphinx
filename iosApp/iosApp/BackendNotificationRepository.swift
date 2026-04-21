@@ -15,20 +15,27 @@ class BackendNotificationRepository {
     private let db = Firestore.firestore()
 
     func observeNotifications(occupantId: String, onChange: @escaping ([AppNotification]) -> Void) -> ListenerRegistration {
-        return db.collection("Notifications")
-            .whereField("occupantId", isEqualTo: occupantId)
-            .order(by: "createdAt", descending: true)
+        print("[NotificationsFlow] observeNotifications: listen start recipientAuthUid=\(occupantId) (collection=notifications)")
+        return db.collection("notifications")
+            .whereField("recipientAuthUid", isEqualTo: occupantId)
+            .order(by: "sentAt", descending: true)
             .addSnapshotListener { snapshot, error in
                 guard let snapshot = snapshot, error == nil else {
+                    if let error = error {
+                        print("[NotificationsFlow] observeNotifications: snapshot error recipientAuthUid=\(occupantId) error=\(error)")
+                    } else {
+                        print("[NotificationsFlow] observeNotifications: snapshot nil recipientAuthUid=\(occupantId)")
+                    }
                     onChange([])
                     return
                 }
+                print("[NotificationsFlow] observeNotifications: snapshot size=\(snapshot.documents.count) recipientAuthUid=\(occupantId)")
                 let notifications: [AppNotification] = snapshot.documents.compactMap { doc in
                     guard let title = doc.data()["title"] as? String else { return nil }
-                    let message = doc.data()["message"] as? String ?? ""
+                    let message = doc.data()["body"] as? String ?? ""
                     let isRead = doc.data()["isRead"] as? Bool ?? false
-                    let createdAt = (doc.data()["createdAt"] as? Timestamp)?.dateValue() ?? Date()
-                    let type = doc.data()["type"] as? String ?? ""
+                    let createdAt = (doc.data()["sentAt"] as? Timestamp)?.dateValue() ?? Date()
+                    let type = doc.data()["source"] as? String ?? ""
                     return AppNotification(
                         id: doc.documentID,
                         occupantId: occupantId,
@@ -44,6 +51,7 @@ class BackendNotificationRepository {
     }
 
     func markAsRead(notificationId: String) async throws {
-        try await db.collection("Notifications").document(notificationId).updateData(["isRead": true])
+        print("[NotificationsFlow] markAsRead: notificationId=\(notificationId) (collection=notifications)")
+        try await db.collection("notifications").document(notificationId).updateData(["isRead": true])
     }
 }

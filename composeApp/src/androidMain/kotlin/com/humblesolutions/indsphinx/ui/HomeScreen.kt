@@ -1,5 +1,6 @@
 package com.humblesolutions.indsphinx.ui
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -97,6 +98,7 @@ import kotlinx.coroutines.launch
 
 private val NavyBlue = Color(0xFF1E2D6B)
 private val BackgroundGray = Color(0xFFF2F4F8)
+private const val NOTIFICATIONS_TAG = "NotificationsFlow"
 
 private enum class HomeOverlay { None, VisitorPass, Feedback, Documents, CoordinatorForm, Notifications }
 
@@ -364,7 +366,10 @@ fun HomeScreen(onSignOut: () -> Unit) {
                                         flatNumber = flatNumber,
                                         unreadCount = unreadCount,
                                         onMenuClick = { scope.launch { drawerState.open() } },
-                                        onNotificationsClick = { overlay = HomeOverlay.Notifications }
+                                        onNotificationsClick = {
+                                            Log.d(NOTIFICATIONS_TAG, "HomeHeader: open notifications overlay")
+                                            overlay = HomeOverlay.Notifications
+                                        }
                                     )
                                     Column(
                                         modifier = Modifier
