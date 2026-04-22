@@ -3,6 +3,7 @@ package com.humblesolutions.indsphinx.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -199,67 +200,157 @@ private fun VisitorPassHeader(
 
 // MARK: - List
 
+private data class FilterOption(
+    val key: String,
+    val label: String,
+    val activeColor: Color,
+    val activeFg: Color
+)
+
+private val filterOptions = listOf(
+    FilterOption("ALL", "All", NavyBlue, Color.White),
+    FilterOption("PENDING", "Pending", Color(0xFFD97706), Color.White),
+    FilterOption("ACCEPTED", "Accepted", Color(0xFF059669), Color.White),
+    FilterOption("REJECTED", "Rejected", Color(0xFFE53935), Color.White)
+)
+
 @Composable
 private fun PassListContent(
     passes: List<VisitorPass>,
     onRequestTapped: () -> Unit,
     onPassSelected: (VisitorPass) -> Unit
 ) {
+    var selectedFilter by remember { mutableStateOf("ALL") }
+
+    val displayedPasses = remember(selectedFilter, passes) {
+        if (selectedFilter == "ALL") passes
+        else passes.filter { it.status == selectedFilter }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .background(BackgroundGray)
-            .padding(horizontal = 16.dp)
     ) {
-        Spacer(Modifier.height(16.dp))
-
-        // Request button
-        Button(
-            onClick = onRequestTapped,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = NavyBlue)
+        // Request button + filter chips (sticky header)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(BackgroundGray)
+                .padding(horizontal = 16.dp)
         ) {
-            Icon(Icons.Outlined.PersonAdd, null, tint = Color.White, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Request Visitor Pass", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        if (passes.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
-                contentAlignment = Alignment.Center
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = onRequestTapped,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = NavyBlue)
             ) {
-                Text("No visitor passes yet", color = Color(0xFF999999), fontSize = 14.sp)
+                Icon(Icons.Outlined.PersonAdd, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Request Visitor Pass", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
-        } else {
-            val grouped = mapOf(
-                "PENDING" to passes.filter { it.status == "PENDING" },
-                "ACCEPTED" to passes.filter { it.status == "ACCEPTED" },
-                "REJECTED" to passes.filter { it.status == "REJECTED" }
-            )
-            grouped.forEach { (status, list) ->
-                if (list.isNotEmpty()) {
-                    Text(
-                        status.lowercase().replaceFirstChar { it.uppercase() },
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF555555)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        list.forEach { pass ->
-                            PassCard(pass = pass, onClick = { onPassSelected(pass) })
+
+            Spacer(Modifier.height(16.dp))
+
+            // Filter chips
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                filterOptions.forEach { option ->
+                    val isSelected = selectedFilter == option.key
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50.dp))
+                            .background(if (isSelected) option.activeColor else Color.White)
+                            .clickable { selectedFilter = option.key }
+                            .padding(horizontal = 18.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(RoundedCornerShape(50.dp))
+                                        .background(option.activeFg)
+                                )
+                            }
+                            Text(
+                                text = option.label,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (isSelected) option.activeFg else Color(0xFF888888)
+                            )
+                            // Pass count badge
+                            val count = if (option.key == "ALL") passes.size
+                                        else passes.count { it.status == option.key }
+                            if (count > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50.dp))
+                                        .background(
+                                            if (isSelected) option.activeFg.copy(alpha = 0.25f)
+                                            else Color(0xFFF0F0F0)
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = count.toString(),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (isSelected) option.activeFg else Color(0xFF888888)
+                                    )
+                                }
+                            }
                         }
                     }
-                    Spacer(Modifier.height(20.dp))
                 }
             }
+            Spacer(Modifier.height(16.dp))
         }
-        Spacer(Modifier.height(24.dp))
+
+        // Scrollable list
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+            if (displayedPasses.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(top = 64.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            if (passes.isEmpty()) "No visitor passes yet"
+                            else "No ${selectedFilter.lowercase()} passes",
+                            color = Color(0xFF999999),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (passes.isNotEmpty()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text("Try a different filter", color = Color(0xFFBBBBBB), fontSize = 12.sp)
+                        }
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    displayedPasses.forEach { pass ->
+                        PassCard(pass = pass, onClick = { onPassSelected(pass) })
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
     }
 }
 

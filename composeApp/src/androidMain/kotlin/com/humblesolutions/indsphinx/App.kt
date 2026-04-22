@@ -1,5 +1,7 @@
 package com.humblesolutions.indsphinx
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -18,50 +20,52 @@ enum class SplashDestination { NOT_LOGGED_IN, NEEDS_AGREEMENT, HOME }
 @Composable
 @Preview
 fun App() {
-    val navController = rememberNavController()
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = Screen.Splash.route) {
-        composable(Screen.Splash.route) {
-            SplashScreen(onSplashComplete = { destination ->
-                val route = when (destination) {
-                    SplashDestination.NOT_LOGGED_IN -> Screen.Login.route
-                    SplashDestination.NEEDS_AGREEMENT -> Screen.ResidentialForm.route
-                    SplashDestination.HOME -> Screen.Home.route
-                }
-                navController.navigate(route) {
-                    popUpTo(Screen.Splash.route) { inclusive = true }
-                }
-            })
-        }
-        composable(Screen.Login.route) {
-            val viewModel: AuthViewModel = viewModel()
-            LoginScreen(
-                viewModel = viewModel,
-                onAuthSuccess = { needsAgreement ->
-                    val route = if (needsAgreement) Screen.ResidentialForm.route else Screen.Home.route
+        NavHost(navController = navController, startDestination = Screen.Splash.route) {
+            composable(Screen.Splash.route) {
+                SplashScreen(onSplashComplete = { destination ->
+                    val route = when (destination) {
+                        SplashDestination.NOT_LOGGED_IN -> Screen.Login.route
+                        SplashDestination.NEEDS_AGREEMENT -> Screen.ResidentialForm.route
+                        SplashDestination.HOME -> Screen.Home.route
+                    }
                     navController.navigate(route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
+                        popUpTo(Screen.Splash.route) { inclusive = true }
                     }
-                }
-            )
-        }
-        composable(Screen.ResidentialForm.route) {
-            ResidentialFormScreen(
-                onFormComplete = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.ResidentialForm.route) { inclusive = true }
+                })
+            }
+            composable(Screen.Login.route) {
+                val viewModel: AuthViewModel = viewModel()
+                LoginScreen(
+                    viewModel = viewModel,
+                    onAuthSuccess = { needsAgreement ->
+                        val route = if (needsAgreement) Screen.ResidentialForm.route else Screen.Home.route
+                        navController.navigate(route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
                     }
-                }
-            )
-        }
-        composable(Screen.Home.route) {
-            HomeScreen(
-                onSignOut = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
+                )
+            }
+            composable(Screen.ResidentialForm.route) {
+                ResidentialFormScreen(
+                    onFormComplete = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.ResidentialForm.route) { inclusive = true }
+                        }
                     }
-                }
-            )
+                )
+            }
+            composable(Screen.Home.route) {
+                HomeScreen(
+                    onSignOut = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
         }
     }
 }

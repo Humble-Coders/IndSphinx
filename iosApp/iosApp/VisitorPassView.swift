@@ -113,6 +113,48 @@ private struct VPHeader: View {
     }
 }
 
+// MARK: - Filter
+
+private struct VPFilterChip: View {
+    let label: String
+    let count: Int
+    let isSelected: Bool
+    let activeColor: Color
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 6) {
+                if isSelected {
+                    Circle()
+                        .fill(Color.white.opacity(0.85))
+                        .frame(width: 6, height: 6)
+                }
+                Text(label)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .white : Color(white: 0.53))
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(isSelected ? .white.opacity(0.85) : Color(white: 0.53))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(isSelected ? Color.white.opacity(0.25) : Color(white: 0.92))
+                        .clipShape(Capsule())
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 9)
+            .background(isSelected ? activeColor : Color.white)
+            .clipShape(Capsule())
+            .shadow(color: isSelected ? activeColor.opacity(0.35) : .black.opacity(0.05),
+                    radius: isSelected ? 6 : 2, x: 0, y: isSelected ? 3 : 1)
+        }
+        .buttonStyle(.plain)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+    }
+}
+
 // MARK: - List
 
 private struct PassListView: View {
@@ -122,16 +164,33 @@ private struct PassListView: View {
     let onRequestTapped: () -> Void
     let onPassSelected: (VisitorPass) -> Void
 
-    private var grouped: [(String, [VisitorPass])] {
-        [("PENDING", passes.filter { $0.status == "PENDING" }),
-         ("ACCEPTED", passes.filter { $0.status == "ACCEPTED" }),
-         ("REJECTED", passes.filter { $0.status == "REJECTED" })]
-        .filter { !$1.isEmpty }
+    @State private var selectedFilter = "ALL"
+
+    private struct FilterOption {
+        let key: String
+        let label: String
+        let color: Color
+    }
+
+    private let filterOptions: [FilterOption] = [
+        .init(key: "ALL",      label: "All",      color: Color(red: 0.118, green: 0.176, blue: 0.42)),
+        .init(key: "PENDING",  label: "Pending",  color: Color(red: 0.851, green: 0.467, blue: 0.024)),
+        .init(key: "ACCEPTED", label: "Accepted", color: Color(red: 0.024, green: 0.588, blue: 0.416)),
+        .init(key: "REJECTED", label: "Rejected", color: Color(red: 0.898, green: 0.224, blue: 0.208))
+    ]
+
+    private var displayedPasses: [VisitorPass] {
+        selectedFilter == "ALL" ? passes : passes.filter { $0.status == selectedFilter }
+    }
+
+    private func count(for key: String) -> Int {
+        key == "ALL" ? passes.count : passes.filter { $0.status == key }.count
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
+            // Sticky header: request button + filter chips
+            VStack(spacing: 12) {
                 // Request button
                 Button(action: onRequestTapped) {
                     HStack(spacing: 8) {
@@ -142,40 +201,67 @@ private struct PassListView: View {
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 15)
                     .background(navyBlue)
                     .cornerRadius(14)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
+                .buttonStyle(.plain)
 
-                if passes.isEmpty {
-                    Text("No visitor passes yet")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(white: 0.6))
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 48)
-                } else {
-                    ForEach(grouped, id: \.0) { status, list in
-                        Text(status.prefix(1) + status.dropFirst().lowercased())
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color(white: 0.33))
-                            .padding(.horizontal, 16)
-                            .padding(.top, 20)
-                            .padding(.bottom, 8)
+                // Filter chips
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(filterOptions, id: \.key) { option in
+                            VPFilterChip(
+                                label: option.label,
+                                count: count(for: option.key),
+                                isSelected: selectedFilter == option.key,
+                                activeColor: option.color,
+                                onTap: { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    selectedFilter = option.key
+                                }}
+                            )
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
+            .background(backgroundGray)
 
-                        VStack(spacing: 10) {
-                            ForEach(list) { pass in
-                                PassCardView(pass: pass, navyBlue: navyBlue, onTap: { onPassSelected(pass) })
-                                    .padding(.horizontal, 16)
+            // Scrollable pass list
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 10) {
+                    if displayedPasses.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "person.crop.circle.badge.questionmark")
+                                .font(.system(size: 40))
+                                .foregroundColor(Color(white: 0.8))
+                            Text(passes.isEmpty ? "No visitor passes yet"
+                                               : "No \(selectedFilter.lowercased()) passes")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color(white: 0.6))
+                            if !passes.isEmpty {
+                                Text("Try a different filter")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(white: 0.73))
                             }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 64)
+                    } else {
+                        ForEach(displayedPasses) { pass in
+                            PassCardView(pass: pass, navyBlue: navyBlue, onTap: { onPassSelected(pass) })
                         }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 24)
             }
-            .padding(.bottom, 24)
+            .background(backgroundGray)
         }
-        .background(backgroundGray)
     }
 }
 

@@ -211,10 +211,9 @@ fun HomeScreen(onSignOut: () -> Unit) {
 
     LaunchedEffect(occupantDocId) {
         if (occupantDocId.isNotEmpty()) {
-            try {
-                val all = BackendComplaintRepository().fetchByOccupant(occupantDocId)
+            BackendComplaintRepository().observeByOccupant(occupantDocId).collect { all ->
                 ongoingComplaints = all.filter { it.status != "CLOSED" }.take(4)
-            } catch (_: Exception) {}
+            }
         }
     }
 

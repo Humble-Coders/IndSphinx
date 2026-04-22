@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseFirestore
 
 struct HomeView: View {
     let onSignOut: () -> Void
@@ -7,6 +8,7 @@ struct HomeView: View {
     @State private var selectedTab = 0
     @State private var isDrawerOpen = false
     @State private var ongoingComplaints: [Complaint] = []
+    @State private var complaintsListener: ListenerRegistration?
     @State private var showVisitorPass = false
     @State private var showFeedback = false
     @State private var showDocuments = false
@@ -80,14 +82,6 @@ struct HomeView: View {
                     .background(backgroundGray)
                 }
                 .background(backgroundGray)
-                .task(id: ready?.occupantDocId) {
-                    guard let docId = ready?.occupantDocId, !docId.isEmpty else { return }
-                    do {
-                        let repo = BackendComplaintRepository()
-                        let all = try await repo.fetchByOccupant(occupantId: docId)
-                        ongoingComplaints = Array(all.filter { $0.status != "CLOSED" }.prefix(4))
-                    } catch {}
-                }
                 .tabItem { Label("Home", systemImage: "house") }
                 .tag(0)
 
@@ -180,6 +174,24 @@ struct HomeView: View {
         }
         .onChange(of: viewModel.shouldSignOut) { denied in
             if denied { onSignOut() }
+        }
+        .onChange(of: ready?.occupantDocId) { docId in
+            complaintsListener?.remove()
+            complaintsListener = nil
+            guard let docId = docId, !docId.isEmpty else { return }
+            complaintsListener = BackendComplaintRepository().observeByOccupant(occupantId: docId) { all in
+                ongoingComplaints = Array(all.filter { $0.status != "CLOSED" }.prefix(4))
+            }
+        }
+        .onAppear {
+            guard let docId = ready?.occupantDocId, !docId.isEmpty else { return }
+            complaintsListener = BackendComplaintRepository().observeByOccupant(occupantId: docId) { all in
+                ongoingComplaints = Array(all.filter { $0.status != "CLOSED" }.prefix(4))
+            }
+        }
+        .onDisappear {
+            complaintsListener?.remove()
+            complaintsListener = nil
         }
         .overlay {
             if let due = viewModel.formDueStatus, due.isDue, !showCoordinatorForm {
