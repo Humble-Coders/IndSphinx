@@ -33,14 +33,17 @@ struct HomeView: View {
             TabView(selection: $selectedTab) {
                 // Home Tab
                 VStack(spacing: 0) {
-                    HomeHeaderView(
+                    HomeTopBarView(
                         navyBlue: navyBlue,
-                        name: ready?.name ?? "",
-                        greeting: ready?.greeting ?? "",
-                        flatNumber: ready?.flatNumber ?? "",
                         unreadCount: viewModel.unreadCount,
                         onMenuTap: { isDrawerOpen = true },
                         onNotificationsTap: { showNotifications = true }
+                    )
+                    HomeGreetingCardView(
+                        navyBlue: navyBlue,
+                        greeting: ready?.greeting ?? "",
+                        name: ready?.name ?? "",
+                        flatNumber: ready?.flatNumber ?? ""
                     )
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 20) {
@@ -258,44 +261,25 @@ struct HomeView: View {
 
 // MARK: - Header
 
-private struct HomeHeaderView: View {
+private struct HomeTopBarView: View {
     let navyBlue: Color
-    let name: String
-    let greeting: String
-    let flatNumber: String
     let unreadCount: Int
     let onMenuTap: () -> Void
     let onNotificationsTap: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 0) {
             Button(action: onMenuTap) {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 20))
                     .foregroundColor(.white)
+                    .frame(width: 40, height: 40)
             }
-
-            VStack(alignment: .leading, spacing: 2) {
-                if !greeting.isEmpty {
-                    Text(greeting)
-                        .font(.system(size: 13))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-                Text(name.isEmpty ? "Loading..." : name)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(.white)
-                HStack(spacing: 4) {
-                    Image(systemName: "house")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.7))
-                    Text(flatNumber.isEmpty ? "—" : flatNumber)
-                        .font(.system(size: 13))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-            }
-
             Spacer()
-
+            Text("Home")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+            Spacer()
             Button(action: onNotificationsTap) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
@@ -317,8 +301,57 @@ private struct HomeHeaderView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 16)
+        .padding(.vertical, 14)
         .background(navyBlue.ignoresSafeArea(edges: .top))
+    }
+}
+
+private struct HomeGreetingCardView: View {
+    let navyBlue: Color
+    let greeting: String
+    let name: String
+    let flatNumber: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                if !greeting.isEmpty {
+                    Text(greeting)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(red: 0.533, green: 0.573, blue: 0.667))
+                    Spacer().frame(height: 3)
+                }
+                Text(name.isEmpty ? "Loading..." : name)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                Spacer().frame(height: 10)
+                HStack(spacing: 5) {
+                    Image(systemName: "house.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(navyBlue)
+                    Text("Flat \(flatNumber.isEmpty ? "—" : flatNumber)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(navyBlue)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(red: 0.933, green: 0.949, blue: 1.0))
+                .clipShape(Capsule())
+            }
+            Spacer()
+            ZStack {
+                Circle()
+                    .fill(navyBlue)
+                    .frame(width: 54, height: 54)
+                Text(String(name.prefix(1)).uppercased())
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 20)
+        .frame(maxWidth: .infinity)
+        .background(Color.white)
     }
 }
 

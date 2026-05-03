@@ -67,8 +67,8 @@ class BackendUserProfileRepository {
             occupantDocId: occupantDoc.documentID,
             flatId: occupantData["flatId"] as? String ?? "",
             hasAcceptedAgreement: occupantData["hasAcceptedAgreement"] as? Bool ?? false,
-            hasAcceptedRevisedForm: occupantData.keys.contains("hasAcceptedRevisedForm")
-                ? (occupantData["hasAcceptedRevisedForm"] as? Bool ?? true)
+            hasAcceptedRevisedForm: occupantData.keys.contains("has_accepted_revised_form")
+                ? (occupantData["has_accepted_revised_form"] as? Bool ?? true)
                 : true
         )
     }

@@ -49,23 +49,20 @@ private struct NoticeboardHeaderView: View {
     let onMenuTap: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 16) {
-                Button(action: onMenuTap) {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 20))
-                        .foregroundColor(navyBlue)
-                }
-                Text("Noticeboard")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
-                Spacer()
+        HStack(spacing: 16) {
+            Button(action: onMenuTap) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 20))
+                    .foregroundColor(.white)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
-            .background(Color.white)
-            Divider()
+            Text("Noticeboard")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+            Spacer()
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+        .background(navyBlue)
     }
 }
 
@@ -76,26 +73,23 @@ private struct NoticeDetailHeaderView: View {
     let onBack: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 16) {
-                Button(action: onBack) {
-                    Image(systemName: "arrow.left")
-                        .font(.system(size: 20))
-                        .foregroundColor(navyBlue)
-                }
-                Text("Notice Details")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
-                Spacer()
-                Image(systemName: "pin")
-                    .font(.system(size: 18))
-                    .foregroundColor(navyBlue)
+        HStack(spacing: 16) {
+            Button(action: onBack) {
+                Image(systemName: "arrow.left")
+                    .font(.system(size: 20))
+                    .foregroundColor(.white)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
-            .background(Color.white)
-            Divider()
+            Text("Notice Details")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+            Spacer()
+            Image(systemName: "pin")
+                .font(.system(size: 18))
+                .foregroundColor(.white)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+        .background(navyBlue)
     }
 }
 

@@ -216,12 +216,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             userProfileRepo.observeOccupant(occupantDocId).collect { data ->
                 val current = _uiState.value as? HomeUiState.Ready ?: return@collect
                 if (data == null) return@collect
+                val updatedFlatId = data["flatId"] as? String ?: current.flatId
                 _uiState.value = current.copy(
                     name = data["Name"] as? String ?: current.name,
                     flatNumber = data["FlatNumber"] as? String ?: current.flatNumber,
-                    flatId = data["flatId"] as? String ?: current.flatId,
+                    flatId = updatedFlatId,
                     isCoordinator = data["isCoordinator"] as? Boolean ?: current.isCoordinator
                 )
+                val hasAccepted = if (data.containsKey("has_accepted_revised_form"))
+                    data["has_accepted_revised_form"] as? Boolean ?: true else true
+                if (!hasAccepted && _revisedFormState.value is RevisedFormState.Hidden) {
+                    loadRevisedFormAmenities(updatedFlatId)
+                }
             }
         }
     }

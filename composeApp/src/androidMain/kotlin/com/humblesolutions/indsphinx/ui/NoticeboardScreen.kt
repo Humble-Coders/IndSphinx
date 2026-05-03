@@ -99,7 +99,7 @@ private fun NoticeboardHeader(onMenuClick: () -> Unit, onBack: (() -> Unit)?) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(NavyBlue)
     ) {
         Row(
             modifier = Modifier
@@ -110,7 +110,7 @@ private fun NoticeboardHeader(onMenuClick: () -> Unit, onBack: (() -> Unit)?) {
         ) {
             Icon(
                 Icons.Outlined.Menu, null,
-                tint = NavyBlue,
+                tint = Color.White,
                 modifier = Modifier
                     .size(24.dp)
                     .clickable { onMenuClick() }
@@ -120,12 +120,11 @@ private fun NoticeboardHeader(onMenuClick: () -> Unit, onBack: (() -> Unit)?) {
                 "Noticeboard",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF1A1A2E),
+                color = Color.White,
                 modifier = Modifier.weight(1f)
             )
         }
     }
-    HorizontalDivider(color = Color(0xFFF0F0F0))
 }
 
 @Composable
@@ -133,7 +132,7 @@ private fun NoticeDetailHeader(onBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(NavyBlue)
     ) {
         Row(
             modifier = Modifier
@@ -144,7 +143,7 @@ private fun NoticeDetailHeader(onBack: () -> Unit) {
         ) {
             Icon(
                 Icons.AutoMirrored.Outlined.ArrowBack, null,
-                tint = NavyBlue,
+                tint = Color.White,
                 modifier = Modifier
                     .size(24.dp)
                     .clickable { onBack() }
@@ -154,17 +153,16 @@ private fun NoticeDetailHeader(onBack: () -> Unit) {
                 "Notice Details",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF1A1A2E),
+                color = Color.White,
                 modifier = Modifier.weight(1f)
             )
             Icon(
                 Icons.Outlined.PushPin, null,
-                tint = NavyBlue,
+                tint = Color.White,
                 modifier = Modifier.size(22.dp)
             )
         }
     }
-    HorizontalDivider(color = Color(0xFFF0F0F0))
 }
 
 @Composable

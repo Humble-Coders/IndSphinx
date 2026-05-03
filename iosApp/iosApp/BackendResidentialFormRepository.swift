@@ -70,7 +70,7 @@ class BackendResidentialFormRepository {
         ]
         let batch = db.batch()
         batch.setData(data, forDocument: db.collection("agreements").document())
-        batch.updateData(["hasAcceptedRevisedForm": true], forDocument: db.collection("Occupants").document(occupantDocId))
+        batch.updateData(["has_accepted_revised_form": true], forDocument: db.collection("Occupants").document(occupantDocId))
         try await batch.commit()
     }
 }

@@ -113,6 +113,7 @@ class HomeViewModel: ObservableObject {
                       case .ready(let name, let greeting, let email, let role, let empId,
                                   let flatNumber, let occupantFrom, let isCoordinator,
                                   let occupantDocId, let flatId) = self.state else { return }
+                let updatedFlatId = data["flatId"] as? String ?? flatId
                 self.state = .ready(
                     name: data["Name"] as? String ?? name,
                     greeting: greeting,
@@ -123,8 +124,14 @@ class HomeViewModel: ObservableObject {
                     occupantFrom: occupantFrom,
                     isCoordinator: data["isCoordinator"] as? Bool ?? isCoordinator,
                     occupantDocId: occupantDocId,
-                    flatId: data["flatId"] as? String ?? flatId
+                    flatId: updatedFlatId
                 )
+                let hasAccepted = data.keys.contains("has_accepted_revised_form")
+                    ? (data["has_accepted_revised_form"] as? Bool ?? true)
+                    : true
+                if !hasAccepted, case .hidden = self.revisedFormState {
+                    await self.loadRevisedFormAmenities(flatId: updatedFlatId)
+                }
             }
         }
     }

@@ -359,16 +359,18 @@ fun HomeScreen(onSignOut: () -> Unit) {
                         ) { tab ->
                             when (tab) {
                                 0 -> Column(modifier = Modifier.fillMaxSize()) {
-                                    HomeHeader(
-                                        name = name,
-                                        greeting = greeting,
-                                        flatNumber = flatNumber,
+                                    HomeTopBar(
                                         unreadCount = unreadCount,
                                         onMenuClick = { scope.launch { drawerState.open() } },
                                         onNotificationsClick = {
-                                            Log.d(NOTIFICATIONS_TAG, "HomeHeader: open notifications overlay")
+                                            Log.d(NOTIFICATIONS_TAG, "HomeTopBar: open notifications overlay")
                                             overlay = HomeOverlay.Notifications
                                         }
+                                    )
+                                    HomeGreetingCard(
+                                        greeting = greeting,
+                                        name = name,
+                                        flatNumber = flatNumber
                                     )
                                     Column(
                                         modifier = Modifier
@@ -454,10 +456,7 @@ fun HomeScreen(onSignOut: () -> Unit) {
 // MARK: - Header
 
 @Composable
-private fun HomeHeader(
-    name: String,
-    greeting: String,
-    flatNumber: String,
+private fun HomeTopBar(
     unreadCount: Int,
     onMenuClick: () -> Unit,
     onNotificationsClick: () -> Unit
@@ -471,45 +470,21 @@ private fun HomeHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 Icons.Outlined.Menu, null,
                 tint = Color.White,
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable { onMenuClick() }
+                modifier = Modifier.size(24.dp).clickable { onMenuClick() }
             )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                if (greeting.isNotEmpty()) {
-                    Text(greeting, color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
-                }
-                Text(
-                    text = name.ifEmpty { "Loading..." },
-                    color = Color.White,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Home, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(flatNumber.ifEmpty { "—" }, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
-                }
-            }
+            Text("Home", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clickable { onNotificationsClick() },
+                modifier = Modifier.size(40.dp).clickable { onNotificationsClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Outlined.NotificationsNone, null,
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
+                Icon(Icons.Outlined.NotificationsNone, null, tint = Color.White, modifier = Modifier.size(24.dp))
                 if (unreadCount > 0) {
                     Box(
                         modifier = Modifier
@@ -528,6 +503,66 @@ private fun HomeHeader(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HomeGreetingCard(greeting: String, name: String, flatNumber: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 20.dp, vertical = 20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            if (greeting.isNotEmpty()) {
+                Text(
+                    greeting,
+                    color = Color(0xFF8892AA),
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(3.dp))
+            }
+            Text(
+                name.ifEmpty { "Loading..." },
+                color = Color(0xFF1A1A2E),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50.dp))
+                    .background(Color(0xFFEEF2FF))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Outlined.Home, null, tint = NavyBlue, modifier = Modifier.size(12.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "Flat ${flatNumber.ifEmpty { "—" }}",
+                    color = NavyBlue,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+        Spacer(Modifier.width(16.dp))
+        Box(
+            modifier = Modifier
+                .size(54.dp)
+                .clip(CircleShape)
+                .background(NavyBlue),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = name.firstOrNull()?.uppercase() ?: "?",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

@@ -65,7 +65,7 @@ class BackendResidentialFormRepository : ResidentialFormRepository {
         )
         val batch = db.batch()
         batch.set(db.collection("agreements").document(), data)
-        batch.update(db.collection("Occupants").document(agreement.occupantId), "hasAcceptedRevisedForm", true)
+        batch.update(db.collection("Occupants").document(agreement.occupantId), "has_accepted_revised_form", true)
         batch.commit().await()
     }
 }

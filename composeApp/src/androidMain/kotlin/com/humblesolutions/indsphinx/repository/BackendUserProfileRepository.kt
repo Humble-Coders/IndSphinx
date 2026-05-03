@@ -59,8 +59,8 @@ class BackendUserProfileRepository : UserProfileRepository {
             occupantDocId = occupantDoc.id,
             flatId = occupantDoc.getString("flatId") ?: "",
             hasAcceptedAgreement = occupantDoc.getBoolean("hasAcceptedAgreement") ?: false,
-            hasAcceptedRevisedForm = if (occupantDoc.contains("hasAcceptedRevisedForm"))
-                occupantDoc.getBoolean("hasAcceptedRevisedForm") ?: true else true
+            hasAcceptedRevisedForm = if (occupantDoc.contains("has_accepted_revised_form"))
+                occupantDoc.getBoolean("has_accepted_revised_form") ?: true else true
         )
     }
 }
