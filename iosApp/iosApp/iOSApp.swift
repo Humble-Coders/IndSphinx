@@ -6,6 +6,12 @@ import UserNotifications
 
 private let tag = "[FCM-iOS]"
 
+class AppNavigationState: ObservableObject {
+    static let shared = AppNavigationState()
+    @Published var pendingNoticeQuestionId: String?
+    @Published var pendingQnId: String?
+}
+
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
 
     private static let pendingFcmTokenKey = "pending_fcm_token"
@@ -121,6 +127,28 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([.banner, .badge, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let userInfo = response.notification.request.content.userInfo
+        let type = userInfo["type"] as? String ?? ""
+        let noticeType = userInfo["noticeType"] as? String ?? ""
+        let noticeId = userInfo["noticeId"] as? String ?? ""
+        let qnId = userInfo["qnId"] as? String ?? ""
+
+        print("\(tag) didReceive notification tap: type=\(type) noticeType=\(noticeType) noticeId=\(noticeId) qnId=\(qnId)")
+
+        Task { @MainActor in
+            if type == "NOTICE_BOARD" && noticeType == "question" && !noticeId.isEmpty {
+                AppNavigationState.shared.pendingNoticeQuestionId = noticeId
+            } else if type == "QUESTION_NOTIFICATION" && !qnId.isEmpty {
+                AppNavigationState.shared.pendingQnId = qnId
+            }
+        }
+
+        completionHandler()
     }
 }
 

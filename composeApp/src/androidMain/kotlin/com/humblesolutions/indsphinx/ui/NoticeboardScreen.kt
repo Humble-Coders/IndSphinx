@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.NavigateNext
 import androidx.compose.material.icons.outlined.PushPin
@@ -54,12 +55,22 @@ private val NavyBlue = Color(0xFF1E2D6B)
 private val BackgroundGray = Color(0xFFF2F4F8)
 
 @Composable
-fun NoticeboardScreen(onMenuClick: () -> Unit, initialNotice: Notice? = null) {
+fun NoticeboardScreen(
+    onMenuClick: () -> Unit,
+    initialNotice: Notice? = null,
+    initialNoticeId: String? = null,
+    displayName: String = "",
+    flatNo: String = "",
+    recipientType: String = ""
+) {
     val viewModel: NoticeboardViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(initialNotice) {
         initialNotice?.let { viewModel.openNoticeDirectly(it) }
+    }
+    LaunchedEffect(initialNoticeId) {
+        initialNoticeId?.let { viewModel.openNoticeByIdWhenLoaded(it) }
     }
 
     when (val state = uiState) {
@@ -84,6 +95,16 @@ fun NoticeboardScreen(onMenuClick: () -> Unit, initialNotice: Notice? = null) {
                 NoticeDetailHeader(onBack = { viewModel.onBackFromDetail() })
                 NoticeDetailContent(notice = state.notice)
             }
+        }
+        is NoticeboardUiState.Question -> {
+            BackHandler { viewModel.onBackFromDetail() }
+            NoticeQuestionScreen(
+                noticeId = state.notice.id,
+                displayName = displayName,
+                flatNo = flatNo,
+                recipientType = recipientType,
+                onBack = { viewModel.onBackFromDetail() }
+            )
         }
         is NoticeboardUiState.Error -> {
             NoticeboardHeader(onMenuClick = onMenuClick, onBack = null)
@@ -205,6 +226,7 @@ private fun NoticeListContent(notices: List<Notice>, onNoticeClick: (Notice) -> 
 
 @Composable
 private fun NoticeCard(notice: Notice, onClick: () -> Unit) {
+    val isQuestion = notice.type == "question"
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -214,12 +236,29 @@ private fun NoticeCard(notice: Notice, onClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                notice.title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF1A1A2E)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    notice.title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1A1A2E),
+                    modifier = Modifier.weight(1f)
+                )
+                if (isQuestion) {
+                    Spacer(Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFFFFF3E0))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Outlined.HelpOutline, null, tint = Color(0xFFE65100), modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text("Question", fontSize = 11.sp, color = Color(0xFFE65100), fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -247,7 +286,12 @@ private fun NoticeCard(notice: Notice, onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clickable { onClick() }
             ) {
-                Text("View Details", fontSize = 13.sp, color = NavyBlue, fontWeight = FontWeight.Medium)
+                Text(
+                    if (isQuestion) "Respond" else "View Details",
+                    fontSize = 13.sp,
+                    color = NavyBlue,
+                    fontWeight = FontWeight.Medium
+                )
                 Icon(Icons.Outlined.NavigateNext, null, tint = NavyBlue, modifier = Modifier.size(16.dp))
             }
         }

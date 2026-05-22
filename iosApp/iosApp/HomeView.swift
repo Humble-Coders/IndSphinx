@@ -5,6 +5,7 @@ struct HomeView: View {
     let onSignOut: () -> Void
 
     @StateObject private var viewModel = HomeViewModel()
+    @ObservedObject private var navState = AppNavigationState.shared
     @State private var selectedTab = 0
     @State private var isDrawerOpen = false
     @State private var ongoingComplaints: [Complaint] = []
@@ -17,6 +18,8 @@ struct HomeView: View {
     @State private var pendingNotice: Notice? = nil
     @State private var showLogoutConfirmation = false
     @State private var showNotifications = false
+    @State private var pendingNoticeQuestionId: String? = nil
+    @State private var pendingQnId: String? = nil
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
     private let backgroundGray = Color(red: 0.949, green: 0.957, blue: 0.973)
@@ -104,7 +107,10 @@ struct HomeView: View {
                 // Noticeboard Tab
                 NoticeboardView(
                     onMenuTap: { isDrawerOpen = true },
-                    initialNotice: pendingNotice
+                    initialNotice: pendingNotice,
+                    displayName: ready?.name ?? "",
+                    flatNo: ready?.flatNumber ?? "",
+                    recipientType: ready?.role ?? ""
                 )
                 .tabItem { Label("Noticeboard", systemImage: "bell") }
                 .tag(2)
@@ -177,6 +183,16 @@ struct HomeView: View {
         }
         .onChange(of: viewModel.shouldSignOut) { denied in
             if denied { onSignOut() }
+        }
+        .onChange(of: navState.pendingNoticeQuestionId) { noticeId in
+            guard let noticeId else { return }
+            pendingNoticeQuestionId = noticeId
+            navState.pendingNoticeQuestionId = nil
+        }
+        .onChange(of: navState.pendingQnId) { qnId in
+            guard let qnId else { return }
+            pendingQnId = qnId
+            navState.pendingQnId = nil
         }
         .onChange(of: ready?.occupantDocId) { docId in
             complaintsListener?.remove()
@@ -252,11 +268,40 @@ struct HomeView: View {
                 onBack: { showNotifications = false }
             )
         }
+        .fullScreenCover(item: Binding(
+            get: { pendingNoticeQuestionId.map { IdentifiableString(value: $0) } },
+            set: { if $0 == nil { pendingNoticeQuestionId = nil } }
+        )) { item in
+            NoticeQuestionView(
+                noticeId: item.value,
+                displayName: ready?.name ?? "",
+                flatNo: ready?.flatNumber ?? "",
+                recipientType: ready?.role ?? "",
+                onBack: { pendingNoticeQuestionId = nil }
+            )
+        }
+        .fullScreenCover(item: Binding(
+            get: { pendingQnId.map { IdentifiableString(value: $0) } },
+            set: { if $0 == nil { pendingQnId = nil } }
+        )) { item in
+            QuestionNotificationView(
+                qnId: item.value,
+                displayName: ready?.name ?? "",
+                flatNo: ready?.flatNumber ?? "",
+                recipientType: ready?.role ?? "",
+                onBack: { pendingQnId = nil }
+            )
+        }
         .fullScreenCover(isPresented: .constant(viewModel.showRevisedForm)) {
             RevisedAmenitiesView(viewModel: viewModel)
                 .interactiveDismissDisabled(true)
         }
     }
+}
+
+private struct IdentifiableString: Identifiable {
+    let id = UUID()
+    let value: String
 }
 
 // MARK: - Header

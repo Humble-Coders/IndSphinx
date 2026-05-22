@@ -1,37 +1,89 @@
 package com.humblesolutions.indsphinx.repository
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
 import com.humblesolutions.indsphinx.model.Notice
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
 
 class BackendNoticeboardRepository : NoticeboardRepository {
     private val db = FirebaseFirestore.getInstance()
 
     override fun observeNotices(): Flow<List<Notice>> = callbackFlow {
-        val registration = db.collection("NoticeBoard")
+        val reg = db.collection("NoticeBoard")
             .orderBy("publishedAt", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) {
-                    trySend(emptyList())
-                    return@addSnapshotListener
-                }
-                val notices = snapshot.documents.mapNotNull { doc ->
-                    val title = doc.getString("title") ?: return@mapNotNull null
-                    val description = doc.getString("description") ?: ""
-                    val publishedAt = (doc.get("publishedAt") as? Timestamp)?.toDate()?.time ?: 0L
-                    Notice(
-                        id = doc.id,
-                        title = title,
-                        description = description,
-                        publishedAt = publishedAt
-                    )
-                }
-                trySend(notices)
+            .addSnapshotListener { snapshot, _ ->
+                trySend(snapshot?.documents?.mapNotNull { it.toNotice() } ?: emptyList())
             }
-        awaitClose { registration.remove() }
+        awaitClose { reg.remove() }
+    }
+
+    override suspend fun fetchNotice(noticeId: String): Notice? {
+        val doc = db.collection("NoticeBoard").document(noticeId).get().await()
+        return if (doc.exists()) doc.toNotice() else null
+    }
+
+    override fun observeResponseExists(noticeId: String, uid: String): Flow<Boolean> = callbackFlow {
+        val reg = db.collection("NoticeBoard").document(noticeId)
+            .collection("responses").document(uid)
+            .addSnapshotListener { snap, _ -> trySend(snap?.exists() == true) }
+        awaitClose { reg.remove() }
+    }
+
+    override suspend fun submitResponse(
+        noticeId: String,
+        uid: String,
+        displayName: String,
+        flatNo: String,
+        recipientType: String,
+        selectedOptions: List<String>,
+        textResponse: String
+    ) {
+        val responseRef = db.collection("NoticeBoard").document(noticeId)
+            .collection("responses").document(uid)
+        val parentRef = db.collection("NoticeBoard").document(noticeId)
+
+        db.runTransaction { tx ->
+            val isNew = !tx.get(responseRef).exists()
+            val data = mapOf(
+                "uid" to uid,
+                "displayName" to displayName,
+                "flatNo" to flatNo,
+                "recipientType" to recipientType,
+                "selectedOptions" to selectedOptions,
+                "textResponse" to textResponse,
+                "submittedAt" to FieldValue.serverTimestamp()
+            )
+            tx.set(responseRef, data, SetOptions.merge())
+            if (isNew) tx.update(parentRef, "responseCount", FieldValue.increment(1))
+        }.await()
+    }
+
+    private fun com.google.firebase.firestore.DocumentSnapshot.toNotice(): Notice? {
+        val title = getString("title") ?: return null
+        val description = getString("description") ?: ""
+        val publishedAt = (get("publishedAt") as? Timestamp)?.toDate()?.time ?: 0L
+        val type = getString("type") ?: "normal"
+        @Suppress("UNCHECKED_CAST")
+        val options = (get("options") as? List<String>) ?: emptyList()
+        val allowMultipleChoices = getBoolean("allowMultipleChoices") ?: false
+        val responseDeadline = (get("responseDeadline") as? Timestamp)?.toDate()?.time
+        val responseCount = (getLong("responseCount") ?: 0L).toInt()
+        return Notice(
+            id = id,
+            title = title,
+            description = description,
+            publishedAt = publishedAt,
+            type = type,
+            options = options,
+            allowMultipleChoices = allowMultipleChoices,
+            responseDeadline = responseDeadline,
+            responseCount = responseCount
+        )
     }
 }

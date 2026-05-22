@@ -19,7 +19,10 @@ enum class SplashDestination { NOT_LOGGED_IN, NEEDS_AGREEMENT, HOME }
 
 @Composable
 @Preview
-fun App() {
+fun App(
+    pendingDeepLink: PendingDeepLink? = null,
+    onDeepLinkConsumed: () -> Unit = {}
+) {
     MaterialTheme(colorScheme = lightColorScheme()) {
         val navController = rememberNavController()
 
@@ -63,7 +66,9 @@ fun App() {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(Screen.Home.route) { inclusive = true }
                         }
-                    }
+                    },
+                    pendingDeepLink = pendingDeepLink,
+                    onDeepLinkConsumed = onDeepLinkConsumed
                 )
             }
         }

@@ -26,16 +26,29 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val title = message.notification?.title ?: return
         val body = message.notification?.body ?: ""
-        Log.d(
-            TAG,
-            "onMessageReceived: title=$title bodyLength=${body.length} dataKeys=${message.data.keys}"
-        )
+        val type = message.data["type"] ?: ""
+        val noticeType = message.data["noticeType"] ?: ""
+        val noticeId = message.data["noticeId"] ?: ""
+        val qnId = message.data["qnId"] ?: ""
+
+        Log.d(TAG, "onMessageReceived: type=$type noticeType=$noticeType noticeId=$noticeId qnId=$qnId")
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            when {
+                type == "NOTICE_BOARD" && noticeType == "question" && noticeId.isNotEmpty() -> {
+                    putExtra(EXTRA_DEEP_LINK_TYPE, DEEP_LINK_NOTICE_QUESTION)
+                    putExtra(EXTRA_NOTICE_ID, noticeId)
+                }
+                type == "QUESTION_NOTIFICATION" && qnId.isNotEmpty() -> {
+                    putExtra(EXTRA_DEEP_LINK_TYPE, DEEP_LINK_QUESTION_NOTIFICATION)
+                    putExtra(EXTRA_QN_ID, qnId)
+                }
+            }
         }
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent, PendingIntent.FLAG_IMMUTABLE
+            this, System.currentTimeMillis().toInt(), intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         val notification = NotificationCompat.Builder(this, "indsphinx_default")
@@ -51,7 +64,12 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
         manager.notify(System.currentTimeMillis().toInt(), notification)
     }
 
-    private companion object {
+    companion object {
         private const val TAG = "NotificationsFlow"
+        const val EXTRA_DEEP_LINK_TYPE = "deep_link_type"
+        const val EXTRA_NOTICE_ID = "deep_link_notice_id"
+        const val EXTRA_QN_ID = "deep_link_qn_id"
+        const val DEEP_LINK_NOTICE_QUESTION = "NOTICE_QUESTION"
+        const val DEEP_LINK_QUESTION_NOTIFICATION = "QUESTION_NOTIFICATION"
     }
 }

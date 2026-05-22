@@ -1,14 +1,13 @@
 package com.humblesolutions.indsphinx.repository
 
-import com.humblesolutions.indsphinx.model.Notice
+import com.humblesolutions.indsphinx.model.QuestionNotification
 import kotlinx.coroutines.flow.Flow
 
-interface NoticeboardRepository {
-    fun observeNotices(): Flow<List<Notice>>
-    suspend fun fetchNotice(noticeId: String): Notice?
-    fun observeResponseExists(noticeId: String, uid: String): Flow<Boolean>
+interface QuestionNotificationRepository {
+    suspend fun fetchQuestionNotification(qnId: String): QuestionNotification?
+    fun observeResponseExists(qnId: String, uid: String): Flow<Boolean>
     suspend fun submitResponse(
-        noticeId: String,
+        qnId: String,
         uid: String,
         displayName: String,
         flatNo: String,

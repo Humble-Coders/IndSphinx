@@ -15,6 +15,7 @@ sealed class NoticeboardUiState {
     object Loading : NoticeboardUiState()
     data class Loaded(val notices: List<Notice>) : NoticeboardUiState()
     data class Detail(val notice: Notice, val notices: List<Notice>) : NoticeboardUiState()
+    data class Question(val notice: Notice, val notices: List<Notice>) : NoticeboardUiState()
     data class Error(val message: String) : NoticeboardUiState()
 }
 
@@ -25,6 +26,7 @@ class NoticeboardViewModel(application: Application) : AndroidViewModel(applicat
     val uiState: StateFlow<NoticeboardUiState> = _uiState.asStateFlow()
 
     private var pendingNotice: Notice? = null
+    private var pendingNoticeId: String? = null
 
     init {
         viewModelScope.launch {
@@ -36,10 +38,21 @@ class NoticeboardViewModel(application: Application) : AndroidViewModel(applicat
                             val refreshed = notices.find { it.id == current.notice.id } ?: current.notice
                             NoticeboardUiState.Detail(refreshed, notices)
                         }
+                        current is NoticeboardUiState.Question -> {
+                            val refreshed = notices.find { it.id == current.notice.id } ?: current.notice
+                            NoticeboardUiState.Question(refreshed, notices)
+                        }
+                        pendingNoticeId != null -> {
+                            val id = pendingNoticeId!!
+                            pendingNoticeId = null
+                            val found = notices.find { it.id == id }
+                            if (found != null) stateForNotice(found, notices) else NoticeboardUiState.Loaded(notices)
+                        }
                         pendingNotice != null -> {
                             val notice = pendingNotice!!
                             pendingNotice = null
-                            NoticeboardUiState.Detail(notices.find { it.id == notice.id } ?: notice, notices)
+                            val found = notices.find { it.id == notice.id } ?: notice
+                            stateForNotice(found, notices)
                         }
                         else -> NoticeboardUiState.Loaded(notices)
                     }
@@ -52,23 +65,39 @@ class NoticeboardViewModel(application: Application) : AndroidViewModel(applicat
 
     fun onNoticeSelected(notice: Notice) {
         val notices = (_uiState.value as? NoticeboardUiState.Loaded)?.notices ?: return
-        _uiState.value = NoticeboardUiState.Detail(notice, notices)
+        _uiState.value = stateForNotice(notice, notices)
     }
 
     fun openNoticeDirectly(notice: Notice) {
         val current = _uiState.value
         if (current is NoticeboardUiState.Loaded) {
-            _uiState.value = NoticeboardUiState.Detail(
-                current.notices.find { it.id == notice.id } ?: notice,
-                current.notices
-            )
+            val found = current.notices.find { it.id == notice.id } ?: notice
+            _uiState.value = stateForNotice(found, current.notices)
         } else {
             pendingNotice = notice
         }
     }
 
+    fun openNoticeByIdWhenLoaded(noticeId: String) {
+        val current = _uiState.value
+        if (current is NoticeboardUiState.Loaded) {
+            val found = current.notices.find { it.id == noticeId } ?: return
+            _uiState.value = stateForNotice(found, current.notices)
+        } else {
+            pendingNoticeId = noticeId
+        }
+    }
+
     fun onBackFromDetail() {
-        val notices = (_uiState.value as? NoticeboardUiState.Detail)?.notices ?: return
+        val notices = when (val s = _uiState.value) {
+            is NoticeboardUiState.Detail -> s.notices
+            is NoticeboardUiState.Question -> s.notices
+            else -> return
+        }
         _uiState.value = NoticeboardUiState.Loaded(notices)
     }
+
+    private fun stateForNotice(notice: Notice, notices: List<Notice>): NoticeboardUiState =
+        if (notice.type == "question") NoticeboardUiState.Question(notice, notices)
+        else NoticeboardUiState.Detail(notice, notices)
 }

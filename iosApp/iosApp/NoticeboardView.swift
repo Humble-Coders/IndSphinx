@@ -3,6 +3,9 @@ import SwiftUI
 struct NoticeboardView: View {
     let onMenuTap: () -> Void
     var initialNotice: Notice? = nil
+    var displayName: String = ""
+    var flatNo: String = ""
+    var recipientType: String = ""
 
     @StateObject private var viewModel = NoticeboardViewModel()
 
@@ -11,21 +14,27 @@ struct NoticeboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if viewModel.selectedNotice != nil {
+            if let notice = viewModel.questionNotice {
+                NoticeQuestionView(
+                    noticeId: notice.id,
+                    displayName: displayName,
+                    flatNo: flatNo,
+                    recipientType: recipientType,
+                    onBack: { viewModel.onBackFromDetail() }
+                )
+            } else if viewModel.selectedNotice != nil {
                 NoticeDetailHeaderView(
                     navyBlue: navyBlue,
                     onBack: { viewModel.onBackFromDetail() }
                 )
+                if let notice = viewModel.selectedNotice {
+                    NoticeDetailContentView(notice: notice, navyBlue: navyBlue, backgroundGray: backgroundGray)
+                }
             } else {
                 NoticeboardHeaderView(
                     navyBlue: navyBlue,
                     onMenuTap: onMenuTap
                 )
-            }
-
-            if let notice = viewModel.selectedNotice {
-                NoticeDetailContentView(notice: notice, navyBlue: navyBlue, backgroundGray: backgroundGray)
-            } else {
                 NoticeListContentView(
                     notices: viewModel.notices,
                     navyBlue: navyBlue,
@@ -141,13 +150,32 @@ private struct NoticeCardView: View {
     let navyBlue: Color
     let onTap: () -> Void
 
+    private var isQuestion: Bool { notice.type == "question" }
+
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(notice.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
-                    .multilineTextAlignment(.leading)
+                HStack(alignment: .top) {
+                    Text(notice.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                        .multilineTextAlignment(.leading)
+                    Spacer()
+                    if isQuestion {
+                        HStack(spacing: 3) {
+                            Image(systemName: "questionmark.circle")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(red: 0.902, green: 0.318, blue: 0.0))
+                            Text("Question")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(Color(red: 0.902, green: 0.318, blue: 0.0))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(red: 1.0, green: 0.953, blue: 0.878))
+                        .cornerRadius(20)
+                    }
+                }
 
                 HStack(spacing: 4) {
                     Image(systemName: "calendar")
@@ -165,7 +193,7 @@ private struct NoticeCardView: View {
                     .multilineTextAlignment(.leading)
 
                 HStack(spacing: 2) {
-                    Text("View Details")
+                    Text(isQuestion ? "Respond" : "View Details")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(navyBlue)
                     Image(systemName: "chevron.right")

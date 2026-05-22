@@ -100,10 +100,23 @@ private val NavyBlue = Color(0xFF1E2D6B)
 private val BackgroundGray = Color(0xFFF2F4F8)
 private const val NOTIFICATIONS_TAG = "NotificationsFlow"
 
-private enum class HomeOverlay { None, VisitorPass, Feedback, Documents, CoordinatorForm, Notifications }
+private sealed class HomeOverlay {
+    object None : HomeOverlay()
+    object VisitorPass : HomeOverlay()
+    object Feedback : HomeOverlay()
+    object Documents : HomeOverlay()
+    object CoordinatorForm : HomeOverlay()
+    object Notifications : HomeOverlay()
+    data class NoticeQuestion(val noticeId: String) : HomeOverlay()
+    data class QuestionNotification(val qnId: String) : HomeOverlay()
+}
 
 @Composable
-fun HomeScreen(onSignOut: () -> Unit) {
+fun HomeScreen(
+    onSignOut: () -> Unit,
+    pendingDeepLink: com.humblesolutions.indsphinx.PendingDeepLink? = null,
+    onDeepLinkConsumed: () -> Unit = {}
+) {
     val viewModel: HomeViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val latestNotice by viewModel.latestNotice.collectAsStateWithLifecycle()
@@ -152,7 +165,7 @@ fun HomeScreen(onSignOut: () -> Unit) {
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var ongoingComplaints by remember { mutableStateOf<List<Complaint>>(emptyList()) }
-    var overlay by remember { mutableStateOf(HomeOverlay.None) }
+    var overlay by remember { mutableStateOf<HomeOverlay>(HomeOverlay.None) }
     var pendingComplaintAction by remember { mutableStateOf<ComplaintStartAction?>(null) }
     var pendingNotice by remember { mutableStateOf<Notice?>(null) }
     var showLogoutConfirmation by remember { mutableStateOf(false) }
@@ -161,8 +174,23 @@ fun HomeScreen(onSignOut: () -> Unit) {
         if (uiState is HomeUiState.AccessDenied) onSignOut()
     }
 
+    LaunchedEffect(pendingDeepLink) {
+        when (val dl = pendingDeepLink) {
+            is com.humblesolutions.indsphinx.PendingDeepLink.NoticeQuestion -> {
+                selectedTab = 2
+                overlay = HomeOverlay.NoticeQuestion(dl.noticeId)
+                onDeepLinkConsumed()
+            }
+            is com.humblesolutions.indsphinx.PendingDeepLink.QuestionNotification -> {
+                overlay = HomeOverlay.QuestionNotification(dl.qnId)
+                onDeepLinkConsumed()
+            }
+            null -> Unit
+        }
+    }
+
     val due = formDueStatus
-    if (due != null && due.isDue && overlay == HomeOverlay.None) {
+    if (due != null && due.isDue && overlay is HomeOverlay.None) {
         FormDueDialog(
             frequencyMonths = due.frequencyMonths,
             onFillForm = {
@@ -218,17 +246,17 @@ fun HomeScreen(onSignOut: () -> Unit) {
     }
 
     // Tab back: goes to Home tab; overlay back: dismisses overlay. Overlay handler is last → highest priority.
-    BackHandler(enabled = overlay == HomeOverlay.None && selectedTab != 0) {
+    BackHandler(enabled = overlay is HomeOverlay.None && selectedTab != 0) {
         selectedTab = 0
     }
-    BackHandler(enabled = overlay != HomeOverlay.None) {
+    BackHandler(enabled = overlay !is HomeOverlay.None) {
         overlay = HomeOverlay.None
     }
 
     AnimatedContent(
         targetState = overlay,
         transitionSpec = {
-            if (targetState != HomeOverlay.None) {
+            if (targetState !is HomeOverlay.None) {
                 (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))).togetherWith(
                     slideOutHorizontally(tween(250)) { -it / 4 } + fadeOut(tween(200))
                 )
@@ -241,34 +269,48 @@ fun HomeScreen(onSignOut: () -> Unit) {
         label = "OverlayAnimation"
     ) { currentOverlay ->
         when (currentOverlay) {
-            HomeOverlay.VisitorPass -> VisitorPassScreen(
+            is HomeOverlay.VisitorPass -> VisitorPassScreen(
                 occupantId = occupantDocId,
                 occupantName = name,
                 flatId = flatId,
                 flatNumber = flatNumber,
                 onBack = { overlay = HomeOverlay.None }
             )
-            HomeOverlay.Feedback -> FeedbackScreen(
+            is HomeOverlay.Feedback -> FeedbackScreen(
                 occupantId = occupantDocId,
                 occupantName = name,
                 onBack = { overlay = HomeOverlay.None }
             )
-            HomeOverlay.Documents -> DocumentsScreen(
+            is HomeOverlay.Documents -> DocumentsScreen(
                 onBack = { overlay = HomeOverlay.None }
             )
-            HomeOverlay.CoordinatorForm -> CoordinatorFormScreen(
+            is HomeOverlay.CoordinatorForm -> CoordinatorFormScreen(
                 occupantId = occupantDocId,
                 flatId = flatId,
                 coordinatorName = name,
                 flatNumber = flatNumber,
                 onBack = { overlay = HomeOverlay.None }
             )
-            HomeOverlay.Notifications -> NotificationsScreen(
+            is HomeOverlay.Notifications -> NotificationsScreen(
                 notifications = notifications,
                 onMarkRead = { viewModel.markNotificationRead(it) },
                 onBack = { overlay = HomeOverlay.None }
             )
-            HomeOverlay.None -> ModalNavigationDrawer(
+            is HomeOverlay.NoticeQuestion -> NoticeQuestionScreen(
+                noticeId = currentOverlay.noticeId,
+                displayName = name,
+                flatNo = flatNumber,
+                recipientType = role,
+                onBack = { overlay = HomeOverlay.None }
+            )
+            is HomeOverlay.QuestionNotification -> QuestionNotificationScreen(
+                qnId = currentOverlay.qnId,
+                displayName = name,
+                flatNo = flatNumber,
+                recipientType = role,
+                onBack = { overlay = HomeOverlay.None }
+            )
+            is HomeOverlay.None -> ModalNavigationDrawer(
                 drawerState = drawerState,
                 drawerContent = {
                     ModalDrawerSheet(
@@ -423,7 +465,10 @@ fun HomeScreen(onSignOut: () -> Unit) {
                                 )
                                 2 -> NoticeboardScreen(
                                     onMenuClick = { scope.launch { drawerState.open() } },
-                                    initialNotice = pendingNotice
+                                    initialNotice = pendingNotice,
+                                    displayName = name,
+                                    flatNo = flatNumber,
+                                    recipientType = role
                                 )
                                 3 -> ProfileContent(
                                     name = name,
