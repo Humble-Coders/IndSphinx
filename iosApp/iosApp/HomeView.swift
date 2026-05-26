@@ -35,6 +35,7 @@ struct HomeView: View {
         ZStack(alignment: .leading) {
             TabView(selection: $selectedTab) {
                 // Home Tab
+                NavigationStack {
                 VStack(spacing: 0) {
                     HomeTopBarView(
                         navyBlue: navyBlue,
@@ -88,6 +89,17 @@ struct HomeView: View {
                     .background(backgroundGray)
                 }
                 .background(backgroundGray)
+                .navigationDestination(isPresented: $showNotifications) {
+                    NotificationsView(
+                        notifications: viewModel.notifications,
+                        onMarkRead: { viewModel.markNotificationRead(notificationId: $0) },
+                        onOpenQuestion: { qnId in pendingQnId = qnId },
+                        onBack: { showNotifications = false }
+                    )
+                    .toolbar(.hidden, for: .navigationBar)
+                    .navigationBarBackButtonHidden(true)
+                }
+                }
                 .tabItem { Label("Home", systemImage: "house") }
                 .tag(0)
 
@@ -266,18 +278,10 @@ struct HomeView: View {
                 onBack: { showCoordinatorForm = false }
             )
         }
-        .fullScreenCover(isPresented: $showNotifications) {
-            NotificationsView(
-                notifications: viewModel.notifications,
-                onMarkRead: { viewModel.markNotificationRead(notificationId: $0) },
-                onOpenQuestion: { qnId in
-                    // Open the question screen; keep the notifications screen behind
-                    // so back-navigation returns to the list.
-                    pendingQnId = qnId
-                },
-                onBack: { showNotifications = false }
-            )
-        }
+        // Notifications is now pushed via NavigationStack from the home tab,
+        // so no fullScreenCover for it here. The QN response cover below
+        // sits at the root of HomeView, so it stacks on top of the pushed
+        // Notifications screen without any SwiftUI single-sheet conflict.
         .fullScreenCover(item: Binding(
             get: { pendingNoticeQuestionId.map { IdentifiableString(value: $0) } },
             set: { if $0 == nil { pendingNoticeQuestionId = nil } }
