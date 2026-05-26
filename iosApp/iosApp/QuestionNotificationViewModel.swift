@@ -21,6 +21,7 @@ class QuestionNotificationViewModel: ObservableObject {
     @Published var textInput: String = ""
     @Published var isSubmitting: Bool = false
     @Published var isDeadlinePassed: Bool = false
+    @Published var submitError: String? = nil
 
     private var responseListener: ListenerRegistration?
 
@@ -80,10 +81,21 @@ class QuestionNotificationViewModel: ObservableObject {
     }
 
     func submit(displayName: String, flatNo: String, recipientType: String) {
-        guard case .ready(let qn) = state,
-              let uid = Auth.auth().currentUser?.uid,
-              !isSubmitting, !isDeadlinePassed else { return }
+        guard case .ready(let qn) = state else {
+            print("[QuestionNotifFlow] submit: aborted — not in ready state")
+            return
+        }
+        guard let uid = Auth.auth().currentUser?.uid else {
+            print("[QuestionNotifFlow] submit: aborted — no signed-in user")
+            return
+        }
+        guard !isSubmitting, !isDeadlinePassed else {
+            print("[QuestionNotifFlow] submit: aborted — isSubmitting=\(isSubmitting) isDeadlinePassed=\(isDeadlinePassed)")
+            return
+        }
+        print("[QuestionNotifFlow] submit: starting qnId=\(qnId) uid=\(uid) options=\(selectedOptions.count) hasText=\(!textInput.isEmpty)")
         isSubmitting = true
+        submitError = nil
         Task {
             do {
                 try await repo.submitResponse(
@@ -97,8 +109,11 @@ class QuestionNotificationViewModel: ObservableObject {
                 )
                 responseListener?.remove()
                 responseListener = nil
+                print("[QuestionNotifFlow] submit: success qnId=\(qnId)")
                 state = .submitted
             } catch {
+                print("[QuestionNotifFlow] submit: FAILED qnId=\(qnId) error=\(error)")
+                submitError = error.localizedDescription
                 isSubmitting = false
             }
             _ = qn

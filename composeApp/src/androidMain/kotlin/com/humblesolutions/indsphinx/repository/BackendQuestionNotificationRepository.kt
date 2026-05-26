@@ -1,5 +1,6 @@
 package com.humblesolutions.indsphinx.repository
 
+import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -60,21 +61,30 @@ class BackendQuestionNotificationRepository : QuestionNotificationRepository {
     ) {
         val responseRef = db.collection("QuestionNotifications").document(qnId)
             .collection("responses").document(uid)
-        val parentRef = db.collection("QuestionNotifications").document(qnId)
 
-        db.runTransaction { tx ->
-            val isNew = !tx.get(responseRef).exists()
-            val data = mapOf(
-                "uid" to uid,
-                "displayName" to displayName,
-                "flatNo" to flatNo,
-                "recipientType" to recipientType,
-                "selectedOptions" to selectedOptions,
-                "textResponse" to textResponse,
-                "submittedAt" to FieldValue.serverTimestamp()
-            )
-            tx.set(responseRef, data, SetOptions.merge())
-            if (isNew) tx.update(parentRef, "responseCount", FieldValue.increment(1))
-        }.await()
+        val data = mapOf(
+            "uid" to uid,
+            "displayName" to displayName,
+            "flatNo" to flatNo,
+            "recipientType" to recipientType,
+            "selectedOptions" to selectedOptions,
+            "textResponse" to textResponse,
+            "submittedAt" to FieldValue.serverTimestamp()
+        )
+        // The parent `responseCount` is maintained by the `onQuestionResponseCreated`
+        // Cloud Function trigger — clients cannot write the parent doc because the
+        // Firestore rule restricts QN parent writes to admins.
+        Log.d(TAG, "submitResponse: qnId=$qnId uid=$uid optionsCount=${selectedOptions.size} hasText=${textResponse.isNotEmpty()}")
+        try {
+            responseRef.set(data, SetOptions.merge()).await()
+            Log.d(TAG, "submitResponse: success qnId=$qnId uid=$uid")
+        } catch (e: Exception) {
+            Log.e(TAG, "submitResponse: FAILED qnId=$qnId uid=$uid", e)
+            throw e
+        }
+    }
+
+    private companion object {
+        private const val TAG = "QuestionNotifFlow"
     }
 }

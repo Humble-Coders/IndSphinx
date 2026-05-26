@@ -185,6 +185,10 @@ fun HomeScreen(
                 overlay = HomeOverlay.QuestionNotification(dl.qnId)
                 onDeepLinkConsumed()
             }
+            com.humblesolutions.indsphinx.PendingDeepLink.OpenNotifications -> {
+                overlay = HomeOverlay.Notifications
+                onDeepLinkConsumed()
+            }
             null -> Unit
         }
     }
@@ -294,6 +298,7 @@ fun HomeScreen(
             is HomeOverlay.Notifications -> NotificationsScreen(
                 notifications = notifications,
                 onMarkRead = { viewModel.markNotificationRead(it) },
+                onOpenQuestion = { qnId -> overlay = HomeOverlay.QuestionNotification(qnId) },
                 onBack = { overlay = HomeOverlay.None }
             )
             is HomeOverlay.NoticeQuestion -> NoticeQuestionScreen(
@@ -1404,6 +1409,7 @@ private fun AmenityCheckRow(amenity: String, checked: Boolean, onToggle: () -> U
 private fun NotificationsScreen(
     notifications: List<AppNotification>,
     onMarkRead: (String) -> Unit,
+    onOpenQuestion: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val dateFormatter = remember { java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault()) }
@@ -1454,10 +1460,16 @@ private fun NotificationsScreen(
             ) {
                 Spacer(Modifier.height(16.dp))
                 notifications.forEach { notification ->
+                    val isQuestion = notification.type == "question_notification" &&
+                        notification.qnId.isNotEmpty()
                     NotificationItem(
                         notification = notification,
                         dateFormatter = dateFormatter,
-                        onMarkRead = { if (!notification.isRead) onMarkRead(notification.id) }
+                        isActionable = isQuestion,
+                        onClick = {
+                            if (!notification.isRead) onMarkRead(notification.id)
+                            if (isQuestion) onOpenQuestion(notification.qnId)
+                        },
                     )
                     Spacer(Modifier.height(10.dp))
                 }
@@ -1471,12 +1483,13 @@ private fun NotificationsScreen(
 private fun NotificationItem(
     notification: AppNotification,
     dateFormatter: java.text.SimpleDateFormat,
-    onMarkRead: () -> Unit
+    isActionable: Boolean = false,
+    onClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onMarkRead() },
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (notification.isRead) Color.White else Color(0xFFEEF2FF)
@@ -1519,13 +1532,24 @@ private fun NotificationItem(
                     )
                 }
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    text = if (notification.createdAt > 0L)
-                        dateFormatter.format(java.util.Date(notification.createdAt))
-                    else "",
-                    fontSize = 11.sp,
-                    color = Color(0xFF9E9E9E)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (notification.createdAt > 0L)
+                            dateFormatter.format(java.util.Date(notification.createdAt))
+                        else "",
+                        fontSize = 11.sp,
+                        color = Color(0xFF9E9E9E)
+                    )
+                    if (isActionable) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Tap to respond →",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = NavyBlue
+                        )
+                    }
+                }
             }
             if (!notification.isRead) {
                 Box(

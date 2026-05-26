@@ -55,6 +55,9 @@ class MainActivity : ComponentActivity() {
                 val qnId = intent.getStringExtra(IndSphinxMessagingService.EXTRA_QN_ID) ?: return null
                 PendingDeepLink.QuestionNotification(qnId)
             }
+            IndSphinxMessagingService.DEEP_LINK_OPEN_NOTIFICATIONS -> {
+                PendingDeepLink.OpenNotifications
+            }
             else -> null
         }
     }

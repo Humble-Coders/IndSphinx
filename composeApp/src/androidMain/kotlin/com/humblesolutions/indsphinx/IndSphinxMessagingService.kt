@@ -44,6 +44,9 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
                     putExtra(EXTRA_DEEP_LINK_TYPE, DEEP_LINK_QUESTION_NOTIFICATION)
                     putExtra(EXTRA_QN_ID, qnId)
                 }
+                type == "TARGETED_NOTIFICATION" -> {
+                    putExtra(EXTRA_DEEP_LINK_TYPE, DEEP_LINK_OPEN_NOTIFICATIONS)
+                }
             }
         }
         val pendingIntent = PendingIntent.getActivity(
@@ -71,5 +74,6 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
         const val EXTRA_QN_ID = "deep_link_qn_id"
         const val DEEP_LINK_NOTICE_QUESTION = "NOTICE_QUESTION"
         const val DEEP_LINK_QUESTION_NOTIFICATION = "QUESTION_NOTIFICATION"
+        const val DEEP_LINK_OPEN_NOTIFICATIONS = "OPEN_NOTIFICATIONS"
     }
 }

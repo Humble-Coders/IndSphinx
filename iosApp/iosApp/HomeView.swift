@@ -194,6 +194,11 @@ struct HomeView: View {
             pendingQnId = qnId
             navState.pendingQnId = nil
         }
+        .onChange(of: navState.pendingOpenNotifications) { open in
+            guard open else { return }
+            showNotifications = true
+            navState.pendingOpenNotifications = false
+        }
         .onChange(of: ready?.occupantDocId) { docId in
             complaintsListener?.remove()
             complaintsListener = nil
@@ -265,6 +270,11 @@ struct HomeView: View {
             NotificationsView(
                 notifications: viewModel.notifications,
                 onMarkRead: { viewModel.markNotificationRead(notificationId: $0) },
+                onOpenQuestion: { qnId in
+                    // Open the question screen; keep the notifications screen behind
+                    // so back-navigation returns to the list.
+                    pendingQnId = qnId
+                },
                 onBack: { showNotifications = false }
             )
         }
@@ -1065,6 +1075,7 @@ private struct FormDueOverlay: View {
 struct NotificationsView: View {
     let notifications: [AppNotification]
     let onMarkRead: (String) -> Void
+    let onOpenQuestion: (String) -> Void
     let onBack: () -> Void
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
@@ -1109,13 +1120,18 @@ struct NotificationsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 10) {
                         ForEach(notifications) { notification in
+                            let isQuestion = notification.type == "question_notification" && !notification.qnId.isEmpty
                             NotificationItemView(
                                 notification: notification,
                                 navyBlue: navyBlue,
                                 dateFormatter: dateFormatter,
+                                isActionable: isQuestion,
                                 onTap: {
                                     if !notification.isRead {
                                         onMarkRead(notification.id)
+                                    }
+                                    if isQuestion {
+                                        onOpenQuestion(notification.qnId)
                                     }
                                 }
                             )
@@ -1135,6 +1151,7 @@ private struct NotificationItemView: View {
     let notification: AppNotification
     let navyBlue: Color
     let dateFormatter: DateFormatter
+    var isActionable: Bool = false
     let onTap: () -> Void
 
     var body: some View {
@@ -1160,9 +1177,16 @@ private struct NotificationItemView: View {
                             .foregroundColor(Color(white: 0.33))
                             .multilineTextAlignment(.leading)
                     }
-                    Text(dateFormatter.string(from: notification.createdAt))
-                        .font(.system(size: 11))
-                        .foregroundColor(Color(white: 0.62))
+                    HStack(spacing: 8) {
+                        Text(dateFormatter.string(from: notification.createdAt))
+                            .font(.system(size: 11))
+                            .foregroundColor(Color(white: 0.62))
+                        if isActionable {
+                            Text("Tap to respond →")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(navyBlue)
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

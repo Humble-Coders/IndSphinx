@@ -63,34 +63,27 @@ class BackendQuestionNotificationRepository {
     ) async throws {
         let responseRef = db.collection("QuestionNotifications").document(qnId)
             .collection("responses").document(uid)
-        let parentRef = db.collection("QuestionNotifications").document(qnId)
 
-        _ = try await db.runTransaction { transaction, errorPointer in
-            let snap: DocumentSnapshot
-            do {
-                snap = try transaction.getDocument(responseRef)
-            } catch let e as NSError {
-                errorPointer?.pointee = e
-                return nil
-            }
-            let isNew = !snap.exists
-            let data: [String: Any] = [
-                "uid": uid,
-                "displayName": displayName,
-                "flatNo": flatNo,
-                "recipientType": recipientType,
-                "selectedOptions": selectedOptions,
-                "textResponse": textResponse,
-                "submittedAt": FieldValue.serverTimestamp()
-            ]
-            transaction.setData(data, forDocument: responseRef, merge: true)
-            if isNew {
-                transaction.updateData(
-                    ["responseCount": FieldValue.increment(Int64(1))],
-                    forDocument: parentRef
-                )
-            }
-            return nil
+        let data: [String: Any] = [
+            "uid": uid,
+            "displayName": displayName,
+            "flatNo": flatNo,
+            "recipientType": recipientType,
+            "selectedOptions": selectedOptions,
+            "textResponse": textResponse,
+            "submittedAt": FieldValue.serverTimestamp()
+        ]
+        // The parent `responseCount` is incremented by the
+        // `onQuestionResponseCreated` Cloud Function trigger — clients cannot
+        // write the parent because the Firestore rule restricts QN parent
+        // writes to admins.
+        print("[QuestionNotifFlow] submitResponse: qnId=\(qnId) uid=\(uid) optionsCount=\(selectedOptions.count) hasText=\(!textResponse.isEmpty)")
+        do {
+            try await responseRef.setData(data, merge: true)
+            print("[QuestionNotifFlow] submitResponse: success qnId=\(qnId) uid=\(uid)")
+        } catch {
+            print("[QuestionNotifFlow] submitResponse: FAILED qnId=\(qnId) uid=\(uid) error=\(error)")
+            throw error
         }
     }
 }

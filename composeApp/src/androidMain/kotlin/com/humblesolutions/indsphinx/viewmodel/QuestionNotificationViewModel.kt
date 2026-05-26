@@ -1,6 +1,8 @@
 package com.humblesolutions.indsphinx.viewmodel
 
 import android.app.Application
+import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -108,8 +110,16 @@ class QuestionNotificationViewModel(
 
     fun submit(displayName: String, flatNo: String, recipientType: String) {
         val state = _uiState.value as? QuestionNotificationUiState.Ready ?: return
-        val uid = authRepo.getCurrentUser()?.uid ?: return
-        if (state.isSubmitting || state.isDeadlinePassed) return
+        val uid = authRepo.getCurrentUser()?.uid
+        if (uid == null) {
+            Log.w(TAG, "submit: aborted — no signed-in user")
+            return
+        }
+        if (state.isSubmitting || state.isDeadlinePassed) {
+            Log.w(TAG, "submit: aborted — isSubmitting=${state.isSubmitting} isDeadlinePassed=${state.isDeadlinePassed}")
+            return
+        }
+        Log.d(TAG, "submit: starting qnId=$qnId uid=$uid options=${state.selectedOptions.size} hasText=${state.textInput.isNotBlank()}")
         _uiState.value = state.copy(isSubmitting = true)
         viewModelScope.launch {
             try {
@@ -123,8 +133,15 @@ class QuestionNotificationViewModel(
                     textResponse = state.textInput
                 )
                 responseListenerJob?.cancel()
+                Log.d(TAG, "submit: success qnId=$qnId")
                 _uiState.value = QuestionNotificationUiState.Submitted
             } catch (e: Exception) {
+                Log.e(TAG, "submit: FAILED qnId=$qnId — ${e.message}", e)
+                Toast.makeText(
+                    getApplication(),
+                    "Could not submit response: ${e.message ?: "unknown error"}",
+                    Toast.LENGTH_LONG,
+                ).show()
                 _uiState.value = state.copy(isSubmitting = false)
             }
         }
@@ -136,6 +153,8 @@ class QuestionNotificationViewModel(
     }
 
     companion object {
+        private const val TAG = "QuestionNotifFlow"
+
         fun factory(qnId: String) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {

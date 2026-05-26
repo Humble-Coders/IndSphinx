@@ -34,6 +34,8 @@ class BackendNotificationRepository : NotificationRepository {
                     val isRead = doc.getBoolean("isRead") ?: false
                     val createdAt = (doc.get("sentAt") as? Timestamp)?.toDate()?.time ?: 0L
                     val type = doc.getString("source") ?: ""
+                    val context = doc.get("context") as? Map<*, *>
+                    val qnId = (context?.get("qnId") as? String) ?: ""
                     AppNotification(
                         id = doc.id,
                         occupantId = occupantId,
@@ -41,7 +43,8 @@ class BackendNotificationRepository : NotificationRepository {
                         message = message,
                         isRead = isRead,
                         createdAt = createdAt,
-                        type = type
+                        type = type,
+                        qnId = qnId,
                     )
                 }
                 trySend(notifications)

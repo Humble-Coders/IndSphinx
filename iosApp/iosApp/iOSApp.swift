@@ -10,6 +10,9 @@ class AppNavigationState: ObservableObject {
     static let shared = AppNavigationState()
     @Published var pendingNoticeQuestionId: String?
     @Published var pendingQnId: String?
+    /// Set when the user taps a system tray push for a normal targeted
+    /// notification — opens the in-app notifications list.
+    @Published var pendingOpenNotifications: Bool = false
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
@@ -145,6 +148,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 AppNavigationState.shared.pendingNoticeQuestionId = noticeId
             } else if type == "QUESTION_NOTIFICATION" && !qnId.isEmpty {
                 AppNavigationState.shared.pendingQnId = qnId
+            } else if type == "TARGETED_NOTIFICATION" {
+                AppNavigationState.shared.pendingOpenNotifications = true
             }
         }
 
