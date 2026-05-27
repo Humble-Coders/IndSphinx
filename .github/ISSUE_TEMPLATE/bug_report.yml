@@ -1,12 +1,11 @@
 name: Bug Report
 description: Report a bug found during testing
-
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for testing! Please fill out the fields below. The more precise the steps and the recording, the faster this gets fixed.
+        Thanks for testing! Please fill out the fields below. The more precise the description and the recording, the faster this gets fixed.
 
   - type: dropdown
     id: severity
@@ -21,25 +20,14 @@ body:
     validations:
       required: true
 
-  - type: dropdown
-    id: environment-type
+  - type: textarea
+    id: description
     attributes:
-      label: Build type
-      options:
-        - Production (live from store)
-        - Internal / test build
-        - Sideloaded APK
+      label: Description
+      description: What's the bug?
+      placeholder: Describe what's wrong.
     validations:
-      required: false
-
-  - type: input
-    id: build-version
-    attributes:
-      label: App version / build
-      description: Found in the app under Settings → About (e.g. v3.4.1 (220))
-      placeholder: "v3.4.1 (220)"
-    validations:
-      required: false
+      required: true
 
   - type: input
     id: device
@@ -49,41 +37,6 @@ body:
       placeholder: "Pixel 7, Android 14  /  iPhone 14, iOS 17"
     validations:
       required: true
-
-  - type: dropdown
-    id: network
-    attributes:
-      label: Network
-      options:
-        - WiFi
-        - Cellular
-        - Offline
-        - Not sure / not relevant
-    validations:
-      required: false
-
-  - type: dropdown
-    id: reproducible
-    attributes:
-      label: Reproducible?
-      options:
-        - Every time
-        - Sometimes / intermittent
-        - Happened once, couldn't reproduce
-    validations:
-      required: true
-
-  - type: textarea
-    id: steps
-    attributes:
-      label: Steps to reproduce
-      description: Exact steps, numbered.
-      placeholder: |
-        1. Open the app on the home screen
-        2. Tap "Complaints"
-        3. ...
-    validations:
-      required: false
 
   - type: textarea
     id: expected
