@@ -1,0 +1,111 @@
+name: Bug Report
+description: Report a bug found during testing
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing! Please fill out the fields below. The more precise the steps and the recording, the faster this gets fixed.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How badly does this affect usage?
+      options:
+        - Critical (crash, data loss, core flow blocked)
+        - Major (feature broken, but there's a workaround)
+        - Minor (works but behaves wrong)
+        - Polish (cosmetic / visual only)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment-type
+    attributes:
+      label: Build type
+      options:
+        - Production (live from store)
+        - Internal / test build
+        - Sideloaded APK
+    validations:
+      required: true
+
+  - type: input
+    id: build-version
+    attributes:
+      label: App version / build
+      description: Found in the app under Settings → About (e.g. v3.4.1 (220))
+      placeholder: "v3.4.1 (220)"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device & OS
+      description: Phone model and OS version
+      placeholder: "Pixel 7, Android 14  /  iPhone 14, iOS 17"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: network
+    attributes:
+      label: Network
+      options:
+        - WiFi
+        - Cellular
+        - Offline
+        - Not sure / not relevant
+    validations:
+      required: false
+
+  - type: dropdown
+    id: reproducible
+    attributes:
+      label: Reproducible?
+      options:
+        - Every time
+        - Sometimes / intermittent
+        - Happened once, couldn't reproduce
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps, numbered.
+      placeholder: |
+        1. Open the app on the home screen
+        2. Tap "Complaints"
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      placeholder: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Recording / screenshot
+      description: Drag and drop your screen recording or screenshot here.
+      placeholder: Drop files here, or paste an image.
+    validations:
+      required: false
