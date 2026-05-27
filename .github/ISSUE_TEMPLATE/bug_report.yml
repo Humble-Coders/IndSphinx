@@ -39,14 +39,6 @@ body:
       required: true
 
   - type: textarea
-    id: expected
-    attributes:
-      label: Expected result
-      placeholder: What should have happened?
-    validations:
-      required: false
-
-  - type: textarea
     id: evidence
     attributes:
       label: Recording / screenshot
