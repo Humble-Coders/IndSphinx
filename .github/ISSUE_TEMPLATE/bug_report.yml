@@ -30,7 +30,7 @@ body:
         - Internal / test build
         - Sideloaded APK
     validations:
-      required: true
+      required: false
 
   - type: input
     id: build-version
@@ -39,7 +39,7 @@ body:
       description: Found in the app under Settings → About (e.g. v3.4.1 (220))
       placeholder: "v3.4.1 (220)"
     validations:
-      required: true
+      required: false
 
   - type: input
     id: device
@@ -83,7 +83,7 @@ body:
         2. Tap "Complaints"
         3. ...
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: expected
@@ -91,15 +91,7 @@ body:
       label: Expected result
       placeholder: What should have happened?
     validations:
-      required: true
-
-  - type: textarea
-    id: actual
-    attributes:
-      label: Actual result
-      placeholder: What actually happened?
-    validations:
-      required: true
+      required: false
 
   - type: textarea
     id: evidence
