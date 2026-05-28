@@ -21,12 +21,14 @@ struct SplashView: View {
                 Spacer()
 
                 RoundedRectangle(cornerRadius: 28)
-                    .fill(Color.white.opacity(0.15))
+                    .fill(Color.white)
                     .frame(width: 160, height: 160)
                     .overlay {
-                        Image(systemName: "building.2")
-                            .font(.system(size: 70, weight: .thin))
-                            .foregroundColor(.white)
+                        Image("AppLogo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .padding(12)
+                            .frame(width: 160, height: 160)
                     }
 
                 Spacer().frame(height: 32)

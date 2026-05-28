@@ -26,7 +26,6 @@ sealed class NoticeQuestionUiState {
         val isSubmitting: Boolean,
         val isDeadlinePassed: Boolean
     ) : NoticeQuestionUiState()
-    object Submitted : NoticeQuestionUiState()
     data class Error(val message: String) : NoticeQuestionUiState()
 }
 
@@ -63,11 +62,12 @@ class NoticeQuestionViewModel(
                     notice.responseDeadline!! < System.currentTimeMillis()
 
                 // Real-time listener drives AlreadyResponded / Ready state transitions.
-                // Submitted state is terminal — the listener is cancelled after submit.
+                // After successful submit the listener is cancelled and state is set to
+                // AlreadyResponded directly.
                 responseListenerJob = viewModelScope.launch {
                     noticeboardRepo.observeResponseExists(noticeId, uid).collect { exists ->
                         val current = _uiState.value
-                        if (current is NoticeQuestionUiState.Submitted) return@collect
+                        if (current is NoticeQuestionUiState.AlreadyResponded) return@collect
                         _uiState.value = if (exists) {
                             NoticeQuestionUiState.AlreadyResponded(notice)
                         } else {
@@ -122,7 +122,7 @@ class NoticeQuestionViewModel(
                     textResponse = state.textInput
                 )
                 responseListenerJob?.cancel()
-                _uiState.value = NoticeQuestionUiState.Submitted
+                _uiState.value = NoticeQuestionUiState.AlreadyResponded(state.notice)
             } catch (e: Exception) {
                 _uiState.value = state.copy(isSubmitting = false)
             }

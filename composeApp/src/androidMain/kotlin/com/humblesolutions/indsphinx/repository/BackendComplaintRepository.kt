@@ -65,14 +65,37 @@ class BackendComplaintRepository : ComplaintRepository {
                 workerName = doc.getString("WorkerName") ?: "",
                 workerUid = doc.getString("WorkerUid") ?: "",
                 workerRemarks = doc.getString("WorkerRemarks") ?: "",
-                workerMedia = (doc.get("WorkerMedia") as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+                workerMedia = (doc.get("WorkerMedia") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                userCompletionRemarks = doc.getString("UserCompletionRemarks") ?: "",
+                adminCloseRemarks = doc.getString("AdminCloseRemarks") ?: ""
             )
         }
     }
 
-    override suspend fun closeComplaint(complaintId: String) {
+    override suspend fun markCompletedByUser(complaintId: String, userRemarks: String) {
+        val trimmed = userRemarks.trim().take(255)
         db.collection("Complaints").document(complaintId)
-            .update("Status", "CLOSED")
+            .update(
+                mapOf(
+                    "Status" to "COMPLETED",
+                    "UserCompletionRemarks" to trimmed,
+                ),
+            )
+            .await()
+    }
+
+    override suspend fun closeComplaintByUser(complaintId: String, userRemarks: String) {
+        val trimmed = userRemarks.trim().take(255)
+        val updates = mutableMapOf<String, Any>(
+            "Status" to "CLOSED",
+            "ResolveDate" to java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                .format(java.util.Date()),
+        )
+        if (trimmed.isNotBlank()) {
+            updates["UserCompletionRemarks"] = trimmed
+        }
+        db.collection("Complaints").document(complaintId)
+            .update(updates)
             .await()
     }
 
@@ -104,7 +127,9 @@ class BackendComplaintRepository : ComplaintRepository {
                         workerName = doc.getString("WorkerName") ?: "",
                         workerUid = doc.getString("WorkerUid") ?: "",
                         workerRemarks = doc.getString("WorkerRemarks") ?: "",
-                        workerMedia = (doc.get("WorkerMedia") as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+                        workerMedia = (doc.get("WorkerMedia") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                        userCompletionRemarks = doc.getString("UserCompletionRemarks") ?: "",
+                        adminCloseRemarks = doc.getString("AdminCloseRemarks") ?: ""
                     )
                 }
                 trySend(complaints)

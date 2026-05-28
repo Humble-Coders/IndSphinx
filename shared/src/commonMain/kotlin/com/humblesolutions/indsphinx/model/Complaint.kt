@@ -18,5 +18,11 @@ data class Complaint(
     val workerName: String = "",
     val workerUid: String = "",
     val workerRemarks: String = "",
-    val workerMedia: List<String> = emptyList()
+    val workerMedia: List<String> = emptyList(),
+    // Optional note the occupant attaches when marking the complaint as
+    // COMPLETED from the mobile app. Visible to admin and the resident.
+    val userCompletionRemarks: String = "",
+    // Mandatory note the admin attaches when CLOSING the complaint.
+    // Visible to admin and the resident.
+    val adminCloseRemarks: String = "",
 )

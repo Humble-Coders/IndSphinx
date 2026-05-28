@@ -129,7 +129,12 @@ struct ComplaintsView: View {
                         complaint: complaint,
                         occupantId: occupantDocId,
                         onBack: { viewModel.onBackFromDetail() },
-                        onClose: { id, oId in viewModel.closeComplaint(id: id, occupantId: oId) }
+                        onMarkCompleted: { id, oId, remarks in
+                            viewModel.markComplaintCompleted(id: id, occupantId: oId, userRemarks: remarks)
+                        },
+                        onCloseByUser: { id, oId, remarks in
+                            viewModel.closeComplaintByUser(id: id, occupantId: oId, userRemarks: remarks)
+                        }
                     )
                     .navigationBarHidden(true)
                 }
@@ -1352,9 +1357,11 @@ private struct ComplaintDetailView: View {
     let complaint: Complaint
     let occupantId: String
     let onBack: () -> Void
-    let onClose: (String, String) -> Void
+    let onMarkCompleted: (String, String, String) -> Void
+    let onCloseByUser:   (String, String, String) -> Void
 
-    @State private var showCloseConfirm = false
+    @State private var showCompleteDialog = false
+    @State private var userRemarks = ""
     @State private var previewImageUrl: String? = nil
     @State private var previewVideoUrl: URL? = nil
 
@@ -1463,8 +1470,8 @@ private struct ComplaintDetailView: View {
                         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
                     }
 
-                    // Worker remarks + media — shown only when COMPLETED
-                    if complaint.status.uppercased() == "COMPLETED" {
+                    // Worker remarks + media — shown once the work is completed.
+                    if complaint.status.uppercased() == "COMPLETED" || complaint.status.uppercased() == "CLOSED" {
                         if !complaint.workerRemarks.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Worker Remarks")
@@ -1569,16 +1576,57 @@ private struct ComplaintDetailView: View {
                         .cornerRadius(12)
                         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
                     }
+
+                    // Resident's feedback note
+                    if !complaint.userCompletionRemarks.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Your Feedback")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(Color(red: 0.012, green: 0.412, blue: 0.631))
+                            Text(complaint.userCompletionRemarks)
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(red: 0.941, green: 0.976, blue: 1.0))
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+                    }
+
+                    // Admin's closing note
+                    if !complaint.adminCloseRemarks.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Admin Closing Note")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(Color(red: 0.427, green: 0.157, blue: 0.851))
+                            Text(complaint.adminCloseRemarks)
+                                .font(.system(size: 14))
+                                .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(red: 0.961, green: 0.953, blue: 1.0))
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
+                    }
                 }
                 .padding(16)
             }
             .background(Color(red: 0.949, green: 0.957, blue: 0.973))
 
-            // Mark as Closed — only if COMPLETED
-            if complaint.status.uppercased() == "COMPLETED" {
+            // Resident action button:
+            //  - OPEN / ASSIGNED → "Mark as Completed" (handed off to admin).
+            //  - COMPLETED       → "Close Complaint" (sign-off; optional feedback).
+            //  - CLOSED          → no button (terminal).
+            let s = complaint.status.uppercased()
+            if s == "OPEN" || s == "ASSIGNED" {
                 Divider()
-                Button(action: { showCloseConfirm = true }) {
-                    Text("Mark as Closed")
+                Button(action: {
+                    userRemarks = ""
+                    showCompleteDialog = true
+                }) {
+                    Text("Mark as Completed")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -1588,14 +1636,73 @@ private struct ComplaintDetailView: View {
                 }
                 .padding(16)
                 .background(Color.white)
+            } else if s == "COMPLETED" {
+                Divider()
+                let overLimit = userRemarks.count > 255
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Feedback (optional)")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Color(white: 0.33))
+                        Spacer()
+                        Text(overLimit ? "Maximum 255 characters" : "\(userRemarks.count)/255")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(overLimit ? .red : Color(white: 0.55))
+                    }
+                    TextField(
+                        "Share how the resolution went",
+                        text: Binding(
+                            get: { userRemarks },
+                            set: { userRemarks = String($0.prefix(305)) }
+                        ),
+                        axis: .vertical
+                    )
+                    .lineLimit(2...4)
+                    .padding(10)
+                    .background(Color(white: 0.97))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(overLimit ? Color.red.opacity(0.6) : Color(white: 0.85), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .font(.system(size: 14))
+
+                    Button(action: {
+                        guard !overLimit else { return }
+                        let trimmed = userRemarks.trimmingCharacters(in: .whitespacesAndNewlines)
+                        userRemarks = ""
+                        onCloseByUser(complaint.id, occupantId, trimmed)
+                    }) {
+                        Text("Mark as Closed")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(overLimit ? Color.gray : navyBlue)
+                            .cornerRadius(12)
+                    }
+                    .disabled(overLimit)
+                }
+                .padding(16)
+                .background(Color.white)
             }
         }
         .background(Color.white.ignoresSafeArea(edges: .top))
-        .alert("Mark as Closed", isPresented: $showCloseConfirm) {
-            Button("Confirm") { onClose(complaint.id, occupantId) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Are you sure this complaint has been resolved to your satisfaction?")
+        .sheet(isPresented: $showCompleteDialog) {
+            UserRemarksSheet(
+                title: "Mark as Completed",
+                message: "Confirm this complaint is resolved. You can leave an optional note for the admin.",
+                confirmLabel: "Confirm",
+                confirmColor: Color(red: 0.18, green: 0.49, blue: 0.20),
+                userRemarks: $userRemarks,
+                onCancel: { showCompleteDialog = false },
+                onConfirm: {
+                    let trimmed = userRemarks.trimmingCharacters(in: .whitespacesAndNewlines)
+                    showCompleteDialog = false
+                    onMarkCompleted(complaint.id, occupantId, trimmed)
+                }
+            )
+            .presentationDetents([.medium])
         }
         .fullScreenCover(isPresented: Binding(
             get: { previewImageUrl != nil },
@@ -1658,5 +1765,95 @@ private struct DetailRowView: View {
                 .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+
+// MARK: - User Remarks Sheet (reusable: Mark Complete + Close by user)
+
+private struct UserRemarksSheet: View {
+    let title: String
+    let message: String
+    let confirmLabel: String
+    let confirmColor: Color
+    @Binding var userRemarks: String
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
+    private var overLimit: Bool { userRemarks.count > 255 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(navyBlue)
+                Spacer()
+                Button(action: onCancel) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color(white: 0.4))
+                        .padding(8)
+                }
+            }
+            Text(message)
+                .font(.system(size: 14))
+                .foregroundColor(Color(white: 0.4))
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("FEEDBACK (OPTIONAL)")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Color(white: 0.55))
+                    Spacer()
+                    Text("\(userRemarks.count)/255")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(overLimit ? Color.red : Color(white: 0.55))
+                }
+                TextEditor(text: Binding(
+                    get: { userRemarks },
+                    set: { userRemarks = String($0.prefix(305)) }
+                ))
+                .frame(minHeight: 96)
+                .padding(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(overLimit ? Color.red.opacity(0.6) : Color(white: 0.85), lineWidth: 1)
+                )
+                if overLimit {
+                    Text("Maximum 255 characters.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.red)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 12) {
+                Button(action: onCancel) {
+                    Text("Cancel")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color(white: 0.4))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color(white: 0.96))
+                        .cornerRadius(10)
+                }
+                Button(action: onConfirm) {
+                    Text(confirmLabel)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(overLimit ? Color.gray : confirmColor)
+                        .cornerRadius(10)
+                }
+                .disabled(overLimit)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.white.ignoresSafeArea())
     }
 }

@@ -514,6 +514,11 @@ private struct PassDetailView: View {
                     VPDetailRow(icon: "clock", label: "Requested On", value: pass.requestDate.shortFormatted(), navyBlue: navyBlue)
                     VPDetailRow(icon: "doc.text", label: "Purpose", value: pass.purposeOfVisit.isEmpty ? "—" : pass.purposeOfVisit, navyBlue: navyBlue)
                     VPDetailRow(icon: "house", label: "Flat", value: pass.flatNumber, navyBlue: navyBlue)
+
+                    if pass.status != "PENDING" && !pass.remarks.isEmpty {
+                        Divider()
+                        AdminRemarksBlock(status: pass.status, remarks: pass.remarks)
+                    }
                 }
                 .padding(20)
                 .background(Color.white)
@@ -524,6 +529,35 @@ private struct PassDetailView: View {
             .padding(.bottom, 24)
         }
         .background(backgroundGray)
+    }
+}
+
+private struct AdminRemarksBlock: View {
+    let status: String
+    let remarks: String
+
+    private var isAccepted: Bool { status == "ACCEPTED" }
+
+    var body: some View {
+        let bg = isAccepted
+            ? Color(red: 0.925, green: 0.992, blue: 0.961)
+            : Color(red: 1.0,   green: 0.933, blue: 0.933)
+        let titleColor = isAccepted
+            ? Color(red: 0.020, green: 0.588, blue: 0.412)
+            : Color(red: 0.898, green: 0.224, blue: 0.208)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(isAccepted ? "Remarks from admin" : "Reason for rejection")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(titleColor)
+            Text(remarks)
+                .font(.system(size: 14))
+                .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(bg)
+        .cornerRadius(12)
     }
 }
 

@@ -216,11 +216,29 @@ class ComplaintsViewModel: ObservableObject {
         state = .landing
     }
 
-    func closeComplaint(id: String, occupantId: String) {
+    /// Occupant marks a complaint as COMPLETED, with an optional feedback
+    /// note (≤255 chars). The admin still has to CLOSE the complaint.
+    func markComplaintCompleted(id: String, occupantId: String, userRemarks: String = "") {
         Task {
             do {
-                try await complaintRepo.closeComplaint(id: id)
-                // Listener will auto-update the list; navigate back to it
+                try await complaintRepo.markCompletedByUser(id: id, userRemarks: userRemarks)
+                // Listener auto-updates the list; navigate back to it.
+                if case .complaintDetail(_, let complaints) = state {
+                    state = .viewComplaints(complaints)
+                }
+            } catch {
+                state = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Occupant CLOSES a complaint that the worker has already marked
+    /// COMPLETED. Optional feedback (≤255 chars) is captured in the same
+    /// UserCompletionRemarks field used by `markComplaintCompleted`.
+    func closeComplaintByUser(id: String, occupantId: String, userRemarks: String = "") {
+        Task {
+            do {
+                try await complaintRepo.closeComplaintByUser(id: id, userRemarks: userRemarks)
                 if case .complaintDetail(_, let complaints) = state {
                     state = .viewComplaints(complaints)
                 }

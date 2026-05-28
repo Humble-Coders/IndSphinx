@@ -14,8 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Apartment
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Visibility
@@ -42,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -104,15 +106,12 @@ fun LoginScreen(
                         .padding(vertical = 28.dp, horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(NavyBlue),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Apartment, null, tint = Color.White, modifier = Modifier.size(40.dp))
-                    }
+                    Image(
+                        painter = painterResource(id = com.humblesolutions.indsphinx.R.drawable.app_logo),
+                        contentDescription = "Indsphinx Logo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(96.dp)
+                    )
                     Spacer(Modifier.height(16.dp))
                     Text(
                         text = "Welcome to Indsphinx",

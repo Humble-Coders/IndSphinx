@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -37,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -78,9 +80,6 @@ fun NoticeQuestionScreen(
             }
             is NoticeQuestionUiState.AlreadyResponded -> {
                 AlreadyRespondedContent(notice = state.notice)
-            }
-            is NoticeQuestionUiState.Submitted -> {
-                SubmittedContent()
             }
             is NoticeQuestionUiState.Ready -> {
                 QuestionContent(
@@ -250,39 +249,41 @@ private fun QuestionContent(
 @Composable
 private fun AlreadyRespondedContent(notice: Notice) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Outlined.CheckCircle, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(64.dp))
-        Spacer(Modifier.height(16.dp))
-        Text("Already Responded", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A1A2E))
-        Spacer(Modifier.height(8.dp))
+        Box(
+            modifier = Modifier
+                .size(88.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFE8F5E9)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Outlined.CheckCircle,
+                null,
+                tint = Color(0xFF2E7D32),
+                modifier = Modifier.size(52.dp)
+            )
+        }
+        Spacer(Modifier.height(20.dp))
         Text(
-            text="You have already submitted a response to ${notice.title}.",
-            fontSize = 14.sp,
-            color = Color(0xFF666666),
-            lineHeight = 22.sp
+            "Response Recorded",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF1A1A2E),
+            textAlign = TextAlign.Center
         )
-    }
-}
-
-@Composable
-private fun SubmittedContent() {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(Icons.Outlined.CheckCircle, null, tint = NavyBlue, modifier = Modifier.size(64.dp))
-        Spacer(Modifier.height(16.dp))
-        Text("Response Submitted", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A1A2E))
         Spacer(Modifier.height(8.dp))
         Text(
-            "Thank you! Your response has been recorded.",
+            "Thank you. Your response to “${notice.title}” has been saved.",
             fontSize = 14.sp,
             color = Color(0xFF666666),
-            lineHeight = 22.sp
+            lineHeight = 22.sp,
+            textAlign = TextAlign.Center
         )
     }
 }

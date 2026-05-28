@@ -17,6 +17,10 @@ struct Complaint: Identifiable, Hashable {
     let workerRemarks: String
     let workerMedia: [String]
     let occupantId: String
+    /// Optional note the occupant attaches when marking the complaint COMPLETED.
+    let userCompletionRemarks: String
+    /// Mandatory note the admin attaches when CLOSING the complaint.
+    let adminCloseRemarks: String
 }
 
 class BackendComplaintRepository {
@@ -82,13 +86,38 @@ class BackendComplaintRepository {
                 workerName: data["WorkerName"] as? String ?? "",
                 workerRemarks: data["WorkerRemarks"] as? String ?? "",
                 workerMedia: data["WorkerMedia"] as? [String] ?? [],
-                occupantId: data["OccupantId"] as? String ?? ""
+                occupantId: data["OccupantId"] as? String ?? "",
+                userCompletionRemarks: data["UserCompletionRemarks"] as? String ?? "",
+                adminCloseRemarks: data["AdminCloseRemarks"] as? String ?? ""
             )
         }
     }
 
-    func closeComplaint(id: String) async throws {
-        try await db.collection("Complaints").document(id).updateData(["Status": "CLOSED"])
+    /// Occupant marks a complaint COMPLETED with an optional feedback note.
+    /// Admin still has to CLOSE the complaint from the admin portal.
+    func markCompletedByUser(id: String, userRemarks: String) async throws {
+        let trimmed = String(userRemarks.trimmingCharacters(in: .whitespacesAndNewlines).prefix(255))
+        try await db.collection("Complaints").document(id).updateData([
+            "Status": "COMPLETED",
+            "UserCompletionRemarks": trimmed,
+        ])
+    }
+
+    /// Occupant CLOSES a complaint that the worker already marked COMPLETED.
+    /// Optional feedback lands in the same `UserCompletionRemarks` field.
+    func closeComplaintByUser(id: String, userRemarks: String) async throws {
+        let trimmed = String(userRemarks.trimmingCharacters(in: .whitespacesAndNewlines).prefix(255))
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.dateFormat = "yyyy-MM-dd"
+        var updates: [String: Any] = [
+            "Status": "CLOSED",
+            "ResolveDate": fmt.string(from: Date()),
+        ]
+        if !trimmed.isEmpty {
+            updates["UserCompletionRemarks"] = trimmed
+        }
+        try await db.collection("Complaints").document(id).updateData(updates)
     }
 
     func observeByOccupant(occupantId: String, onChange: @escaping ([Complaint]) -> Void) -> ListenerRegistration {
@@ -117,7 +146,9 @@ class BackendComplaintRepository {
                         workerName: data["WorkerName"] as? String ?? "",
                         workerRemarks: data["WorkerRemarks"] as? String ?? "",
                         workerMedia: data["WorkerMedia"] as? [String] ?? [],
-                        occupantId: data["OccupantId"] as? String ?? ""
+                        occupantId: data["OccupantId"] as? String ?? "",
+                        userCompletionRemarks: data["UserCompletionRemarks"] as? String ?? "",
+                        adminCloseRemarks: data["AdminCloseRemarks"] as? String ?? ""
                     )
                 }
                 onChange(complaints)

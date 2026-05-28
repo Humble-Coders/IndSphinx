@@ -417,7 +417,8 @@ fun HomeScreen(
                                     HomeGreetingCard(
                                         greeting = greeting,
                                         name = name,
-                                        flatNumber = flatNumber
+                                        flatNumber = flatNumber,
+                                        onProfileClick = { selectedTab = 3 }
                                     )
                                     Column(
                                         modifier = Modifier
@@ -558,7 +559,12 @@ private fun HomeTopBar(
 }
 
 @Composable
-private fun HomeGreetingCard(greeting: String, name: String, flatNumber: String) {
+private fun HomeGreetingCard(
+    greeting: String,
+    name: String,
+    flatNumber: String,
+    onProfileClick: () -> Unit = {}
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -566,7 +572,11 @@ private fun HomeGreetingCard(greeting: String, name: String, flatNumber: String)
             .padding(horizontal = 20.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onProfileClick)
+        ) {
             if (greeting.isNotEmpty()) {
                 Text(
                     greeting,
@@ -604,7 +614,8 @@ private fun HomeGreetingCard(greeting: String, name: String, flatNumber: String)
             modifier = Modifier
                 .size(54.dp)
                 .clip(CircleShape)
-                .background(NavyBlue),
+                .background(NavyBlue)
+                .clickable(onClick = onProfileClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -633,21 +644,17 @@ private fun HomeDrawerContent(
     onSignOut: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
-        // Navy header
-        Column(
+        // Navy header — matches HomeTopBar height (40dp content + 14dp vertical padding)
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(NavyBlue)
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .height(40.dp),
+            contentAlignment = Alignment.CenterStart
         ) {
             Text(name.ifEmpty { "—" }, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Home, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(flatNumber.ifEmpty { "—" }, color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
-            }
         }
 
         // Menu items

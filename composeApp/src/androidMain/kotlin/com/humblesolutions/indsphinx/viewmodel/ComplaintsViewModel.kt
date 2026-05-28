@@ -316,15 +316,37 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.value = ComplaintsUiState.Landing
     }
 
-    fun closeComplaint(complaintId: String, occupantId: String) {
+    /**
+     * Occupant marks a complaint as COMPLETED, with an optional feedback
+     * note (≤255 chars). The admin sees the new status and the note from
+     * the admin portal and decides whether to finally CLOSE the complaint.
+     */
+    fun markComplaintCompleted(complaintId: String, occupantId: String, userRemarks: String = "") {
         viewModelScope.launch {
             try {
-                closeComplaintUseCase.execute(complaintId)
-                // Listener auto-updates the list; just navigate back to list view
+                closeComplaintUseCase.execute(complaintId, userRemarks)
+                // Listener auto-updates the list; navigate back to list view.
                 val complaints = (_uiState.value as? ComplaintsUiState.ComplaintDetail)?.complaints ?: emptyList()
                 _uiState.value = ComplaintsUiState.ViewComplaints(complaints)
             } catch (e: Exception) {
-                _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to close complaint")
+                _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to mark the complaint as completed.")
+            }
+        }
+    }
+
+    /**
+     * Occupant CLOSES a complaint that was already marked COMPLETED by the
+     * worker. Optional feedback (≤255 chars) lands in the same
+     * `UserCompletionRemarks` field.
+     */
+    fun closeComplaintByUser(complaintId: String, occupantId: String, userRemarks: String = "") {
+        viewModelScope.launch {
+            try {
+                complaintRepo.closeComplaintByUser(complaintId, userRemarks)
+                val complaints = (_uiState.value as? ComplaintsUiState.ComplaintDetail)?.complaints ?: emptyList()
+                _uiState.value = ComplaintsUiState.ViewComplaints(complaints)
+            } catch (e: Exception) {
+                _uiState.value = ComplaintsUiState.Error(e.message ?: "Failed to close the complaint.")
             }
         }
     }

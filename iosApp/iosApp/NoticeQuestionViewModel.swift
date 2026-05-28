@@ -9,7 +9,6 @@ class NoticeQuestionViewModel: ObservableObject {
         case loading
         case alreadyResponded(Notice)
         case ready(Notice)
-        case submitted
         case error(String)
     }
 
@@ -48,11 +47,12 @@ class NoticeQuestionViewModel: ObservableObject {
             }
 
             // Real-time listener drives AlreadyResponded / Ready transitions.
-            // Submitted is terminal — listener is removed after a successful submit.
+            // After successful submit the listener is removed and state is set to
+            // .alreadyResponded directly.
             responseListener = repo.observeResponseExists(noticeId: noticeId, uid: uid) { [weak self] exists in
                 Task { @MainActor in
                     guard let self else { return }
-                    if case .submitted = self.state { return }
+                    if case .alreadyResponded = self.state { return }
                     if exists {
                         self.state = .alreadyResponded(notice)
                     } else if case .ready = self.state {
@@ -95,11 +95,10 @@ class NoticeQuestionViewModel: ObservableObject {
                 )
                 responseListener?.remove()
                 responseListener = nil
-                state = .submitted
+                state = .alreadyResponded(notice)
             } catch {
                 isSubmitting = false
             }
-            _ = notice
         }
     }
 }

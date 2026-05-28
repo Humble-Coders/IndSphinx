@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -293,7 +294,12 @@ fun ComplaintsScreen(
                 complaint = state.complaint,
                 occupantId = occupantDocId,
                 onBack = { viewModel.onBackFromDetail() },
-                onClose = { id, oId -> viewModel.closeComplaint(id, oId) }
+                onMarkCompleted = { id, oId, remarks ->
+                    viewModel.markComplaintCompleted(id, oId, remarks)
+                },
+                onCloseByUser = { id, oId, remarks ->
+                    viewModel.closeComplaintByUser(id, oId, remarks)
+                },
             )
         }
     }
@@ -1565,10 +1571,12 @@ private fun ComplaintDetailScreen(
     complaint: Complaint,
     occupantId: String,
     onBack: () -> Unit,
-    onClose: (complaintId: String, occupantId: String) -> Unit
+    onMarkCompleted: (complaintId: String, occupantId: String, userRemarks: String) -> Unit,
+    onCloseByUser:   (complaintId: String, occupantId: String, userRemarks: String) -> Unit,
 ) {
     val visuals = categoryVisuals(complaint.category)
-    var showCloseConfirm by remember { mutableStateOf(false) }
+    var showCompleteDialog by remember { mutableStateOf(false) }
+    var userRemarks by remember { mutableStateOf("") }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
     var playVideoUrl by remember { mutableStateOf<String?>(null) }
 
@@ -1690,7 +1698,7 @@ private fun ComplaintDetailScreen(
                 }
 
                 // Worker remarks + media — shown only when COMPLETED
-                if (complaint.status.uppercase() == "COMPLETED") {
+                if (complaint.status.uppercase() == "COMPLETED" || complaint.status.uppercase() == "CLOSED") {
                     if (complaint.workerRemarks.isNotBlank()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -1736,6 +1744,38 @@ private fun ComplaintDetailScreen(
                     }
                 }
 
+                // Resident's feedback note (added by occupant when marking completed)
+                if (complaint.userCompletionRemarks.isNotBlank()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
+                        elevation = CardDefaults.cardElevation(1.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Your Feedback", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0369A1))
+                            Spacer(Modifier.height(8.dp))
+                            Text(complaint.userCompletionRemarks, fontSize = 14.sp, color = Color(0xFF1A1A2E))
+                        }
+                    }
+                }
+
+                // Admin's closing note — shown to the resident once CLOSED.
+                if (complaint.adminCloseRemarks.isNotBlank()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F3FF)),
+                        elevation = CardDefaults.cardElevation(1.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Admin Closing Note", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF6D28D9))
+                            Spacer(Modifier.height(8.dp))
+                            Text(complaint.adminCloseRemarks, fontSize = 14.sp, color = Color(0xFF1A1A2E))
+                        }
+                    }
+                }
+
                 // Occupant media card
                 if (complaint.mediaUrls.isNotEmpty()) {
                     Card(
@@ -1770,15 +1810,66 @@ private fun ComplaintDetailScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
-            // Mark as Closed button — only shown when COMPLETED
-            if (complaint.status.uppercase() == "COMPLETED") {
+            // Resident action button:
+            //  - OPEN / ASSIGNED → "Mark as Completed" (handed off to admin).
+            //  - COMPLETED       → "Close Complaint" (sign-off; optional feedback).
+            //  - CLOSED          → no button (terminal).
+            val s = complaint.status.uppercase()
+            if (s == "OPEN" || s == "ASSIGNED") {
                 HorizontalDivider(color = Color(0xFFEEEEEE))
                 Box(modifier = Modifier.fillMaxWidth().background(Color.White).padding(16.dp)) {
                     Button(
-                        onClick = { showCloseConfirm = true },
+                        onClick = {
+                            userRemarks = ""
+                            showCompleteDialog = true
+                        },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    ) {
+                        Text("Mark as Completed", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            } else if (s == "COMPLETED") {
+                HorizontalDivider(color = Color(0xFFEEEEEE))
+                val overLimit = userRemarks.length > 255
+                Column(modifier = Modifier.fillMaxWidth().background(Color.White).padding(16.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Feedback (optional)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF555555),
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            if (overLimit) "Maximum 255 characters" else "${userRemarks.length}/255",
+                            fontSize = 11.sp,
+                            color = if (overLimit) Color(0xFFE53935) else Color(0xFF888888),
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = userRemarks,
+                        onValueChange = { if (it.length <= 305) userRemarks = it },
+                        placeholder = { Text("Share how the resolution went", fontSize = 13.sp, color = Color(0xFFAAAAAA)) },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        isError = overLimit,
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = Color(0xFF1A1A2E)),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            if (!overLimit) {
+                                onCloseByUser(complaint.id, occupantId, userRemarks.trim())
+                                userRemarks = ""
+                            }
+                        },
+                        enabled = !overLimit,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = NavyBlue),
                     ) {
                         Text("Mark as Closed", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     }
@@ -1786,21 +1877,52 @@ private fun ComplaintDetailScreen(
             }
         }
 
-        if (showCloseConfirm) {
+        if (showCompleteDialog) {
+            val overLimit = userRemarks.length > 255
             AlertDialog(
-                onDismissRequest = { showCloseConfirm = false },
-                title = { Text("Mark as Closed") },
-                text = { Text("Are you sure this complaint has been resolved to your satisfaction?") },
+                onDismissRequest = { showCompleteDialog = false },
+                title = { Text("Mark as Completed") },
+                text = {
+                    Column {
+                        Text(
+                            "Confirm this complaint is resolved? You can leave an optional note for the admin.",
+                            fontSize = 14.sp,
+                            color = Color(0xFF555555),
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = userRemarks,
+                            onValueChange = { if (it.length <= 305) userRemarks = it },
+                            placeholder = { Text("Optional feedback for the admin", fontSize = 13.sp) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            isError = overLimit,
+                            supportingText = {
+                                Text(
+                                    if (overLimit)
+                                        "Maximum 255 characters."
+                                    else
+                                        "${userRemarks.length}/255",
+                                    color = if (overLimit) Color(0xFFE53935) else Color(0xFF888888),
+                                    fontSize = 11.sp,
+                                )
+                            },
+                        )
+                    }
+                },
                 confirmButton = {
-                    TextButton(onClick = {
-                        showCloseConfirm = false
-                        onClose(complaint.id, occupantId)
-                    }) {
+                    TextButton(
+                        enabled = !overLimit,
+                        onClick = {
+                            showCompleteDialog = false
+                            onMarkCompleted(complaint.id, occupantId, userRemarks.trim())
+                        },
+                    ) {
                         Text("Confirm", color = Color(0xFF2E7D32), fontWeight = FontWeight.SemiBold)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showCloseConfirm = false }) {
+                    TextButton(onClick = { showCompleteDialog = false }) {
                         Text("Cancel", color = Color(0xFF666666))
                     }
                 }

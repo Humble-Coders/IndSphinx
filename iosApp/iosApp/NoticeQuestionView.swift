@@ -36,8 +36,6 @@ struct NoticeQuestionView: View {
                 Spacer()
             case .alreadyResponded(let notice):
                 AlreadyRespondedView(title: notice.title, navyBlue: navyBlue)
-            case .submitted:
-                SubmittedView(navyBlue: navyBlue)
             case .ready(let notice):
                 QuestionResponseContentView(
                     title: notice.title,
@@ -96,8 +94,6 @@ struct QuestionNotificationView: View {
                 Spacer()
             case .alreadyResponded(let qn):
                 AlreadyRespondedView(title: qn.title, navyBlue: navyBlue)
-            case .submitted:
-                SubmittedView(navyBlue: navyBlue)
             case .ready(let qn):
                 QuestionResponseContentView(
                     title: qn.title,
@@ -262,41 +258,27 @@ private struct AlreadyRespondedView: View {
     let navyBlue: Color
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Spacer()
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 64))
-                .foregroundColor(Color(red: 0.298, green: 0.686, blue: 0.314))
-            Text("Already Responded")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
-            Text("You have already submitted a response to \"\(title)\".")
-                .font(.system(size: 14))
-                .foregroundColor(Color(white: 0.4))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            Spacer()
-        }
-    }
-}
-
-private struct SubmittedView: View {
-    let navyBlue: Color
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 64))
-                .foregroundColor(navyBlue)
-            Text("Response Submitted")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
-            Text("Thank you! Your response has been recorded.")
-                .font(.system(size: 14))
-                .foregroundColor(Color(white: 0.4))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0.910, green: 0.961, blue: 0.914))
+                    .frame(width: 88, height: 88)
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 52))
+                    .foregroundColor(Color(red: 0.180, green: 0.490, blue: 0.196))
+            }
+            VStack(spacing: 8) {
+                Text("Response Recorded")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                Text("Thank you. Your response to \u{201C}\(title)\u{201D} has been saved.")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(white: 0.4))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                    .padding(.horizontal, 32)
+            }
             Spacer()
         }
     }

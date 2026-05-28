@@ -28,7 +28,6 @@ sealed class QuestionNotificationUiState {
         val isSubmitting: Boolean,
         val isDeadlinePassed: Boolean
     ) : QuestionNotificationUiState()
-    object Submitted : QuestionNotificationUiState()
     data class Error(val message: String) : QuestionNotificationUiState()
 }
 
@@ -71,7 +70,7 @@ class QuestionNotificationViewModel(
                 responseListenerJob = viewModelScope.launch {
                     repo.observeResponseExists(qnId, uid).collect { exists ->
                         val current = _uiState.value
-                        if (current is QuestionNotificationUiState.Submitted) return@collect
+                        if (current is QuestionNotificationUiState.AlreadyResponded) return@collect
                         _uiState.value = if (exists) {
                             QuestionNotificationUiState.AlreadyResponded(qn)
                         } else {
@@ -134,7 +133,7 @@ class QuestionNotificationViewModel(
                 )
                 responseListenerJob?.cancel()
                 Log.d(TAG, "submit: success qnId=$qnId")
-                _uiState.value = QuestionNotificationUiState.Submitted
+                _uiState.value = QuestionNotificationUiState.AlreadyResponded(state.qn)
             } catch (e: Exception) {
                 Log.e(TAG, "submit: FAILED qnId=$qnId — ${e.message}", e)
                 Toast.makeText(

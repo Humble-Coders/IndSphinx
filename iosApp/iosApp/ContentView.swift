@@ -11,21 +11,39 @@ struct ContentView: View {
     @State private var currentScreen: AppScreen = .splash
 
     var body: some View {
-        switch currentScreen {
-        case .splash:
-            SplashView { destination in
-                currentScreen = destination
-            }
-        case .login:
-            LoginView(
-                onAuthSuccess: { needsAgreement in
-                    currentScreen = needsAgreement ? .residentialForm : .home
+        ZStack {
+            switch currentScreen {
+            case .splash:
+                SplashView { destination in
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        currentScreen = destination
+                    }
                 }
-            )
-        case .residentialForm:
-            ResidentialFormView(onFormComplete: { currentScreen = .home })
-        case .home:
-            HomeView(onSignOut: { currentScreen = .login })
+                .transition(.opacity)
+            case .login:
+                LoginView(
+                    onAuthSuccess: { needsAgreement in
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            currentScreen = needsAgreement ? .residentialForm : .home
+                        }
+                    }
+                )
+                .transition(.opacity)
+            case .residentialForm:
+                ResidentialFormView(onFormComplete: {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        currentScreen = .home
+                    }
+                })
+                .transition(.opacity)
+            case .home:
+                HomeView(onSignOut: {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        currentScreen = .login
+                    }
+                })
+                .transition(.opacity)
+            }
         }
     }
 }

@@ -14,6 +14,9 @@ struct VisitorPass: Identifiable, Hashable {
     let visitDate: Date
     let requestDate: Date
     let status: String  // PENDING | ACCEPTED | REJECTED
+    /// Admin's note attached at the time of accept or reject. Empty while
+    /// the pass is still pending.
+    let remarks: String
 }
 
 class BackendVisitorPassRepository {
@@ -68,7 +71,8 @@ class BackendVisitorPassRepository {
                         relationshipWithVisitor: data["RelationshipWithVisitor"] as? String ?? "",
                         visitDate: (data["VisitDate"] as? Timestamp)?.dateValue() ?? Date(),
                         requestDate: (data["RequestDate"] as? Timestamp)?.dateValue() ?? Date(),
-                        status: data["Status"] as? String ?? "PENDING"
+                        status: data["Status"] as? String ?? "PENDING",
+                        remarks: data["Remarks"] as? String ?? ""
                     )
                 }
                 onChange(passes)

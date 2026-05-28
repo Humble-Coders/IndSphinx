@@ -47,7 +47,8 @@ struct HomeView: View {
                         navyBlue: navyBlue,
                         greeting: ready?.greeting ?? "",
                         name: ready?.name ?? "",
-                        flatNumber: ready?.flatNumber ?? ""
+                        flatNumber: ready?.flatNumber ?? "",
+                        onProfileTap: { selectedTab = 3 }
                     )
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 20) {
@@ -370,6 +371,7 @@ private struct HomeGreetingCardView: View {
     let greeting: String
     let name: String
     let flatNumber: String
+    var onProfileTap: () -> Void = {}
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
@@ -397,6 +399,8 @@ private struct HomeGreetingCardView: View {
                 .background(Color(red: 0.933, green: 0.949, blue: 1.0))
                 .clipShape(Capsule())
             }
+            .contentShape(Rectangle())
+            .onTapGesture { onProfileTap() }
             Spacer()
             ZStack {
                 Circle()
@@ -406,6 +410,8 @@ private struct HomeGreetingCardView: View {
                     .font(.system(size: 22, weight: .bold))
                     .foregroundColor(.white)
             }
+            .contentShape(Circle())
+            .onTapGesture { onProfileTap() }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 20)
@@ -442,26 +448,16 @@ private struct DrawerContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Navy header — top padding accounts for status bar / notch
-            VStack(alignment: .leading, spacing: 0) {
-                Text(name.isEmpty ? "—" : name)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
-                Spacer().frame(height: 4)
-                HStack(spacing: 4) {
-                    Image(systemName: "house")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.7))
-                    Text(flatNumber.isEmpty ? "—" : flatNumber)
-                        .font(.system(size: 13))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, safeAreaTop + 20)
-            .padding(.bottom, 20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(navyBlue.ignoresSafeArea(edges: .top))
+            // Navy header — matches HomeTopBarView height (40pt content + 14pt vertical padding)
+            Text(name.isEmpty ? "—" : name)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.white)
+                .frame(height: 40, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .padding(.top, safeAreaTop)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(navyBlue.ignoresSafeArea(edges: .top))
 
             // Menu items
             VStack(spacing: 0) {

@@ -9,7 +9,6 @@ class QuestionNotificationViewModel: ObservableObject {
         case loading
         case alreadyResponded(QuestionNotification)
         case ready(QuestionNotification)
-        case submitted
         case error(String)
     }
 
@@ -55,7 +54,7 @@ class QuestionNotificationViewModel: ObservableObject {
             responseListener = repo.observeResponseExists(qnId: qnId, uid: uid) { [weak self] exists in
                 Task { @MainActor in
                     guard let self else { return }
-                    if case .submitted = self.state { return }
+                    if case .alreadyResponded = self.state { return }
                     if exists {
                         self.state = .alreadyResponded(qn)
                     } else if case .ready = self.state {
@@ -110,13 +109,12 @@ class QuestionNotificationViewModel: ObservableObject {
                 responseListener?.remove()
                 responseListener = nil
                 print("[QuestionNotifFlow] submit: success qnId=\(qnId)")
-                state = .submitted
+                state = .alreadyResponded(qn)
             } catch {
                 print("[QuestionNotifFlow] submit: FAILED qnId=\(qnId) error=\(error)")
                 submitError = error.localizedDescription
                 isSubmitting = false
             }
-            _ = qn
         }
     }
 }

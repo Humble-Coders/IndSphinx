@@ -598,9 +598,47 @@ private fun PassDetailContent(pass: VisitorPass) {
                 DetailRow(Icons.Outlined.Description, "Purpose", pass.purposeOfVisit)
                 Spacer(Modifier.height(12.dp))
                 DetailRow(Icons.Outlined.Badge, "Flat", pass.flatNumber)
+
+                // Admin's remarks — only present after the pass has been
+                // accepted or rejected. Coloured to match the action.
+                if (pass.status != "PENDING" && pass.remarks.isNotBlank()) {
+                    Spacer(Modifier.height(16.dp))
+                    HorizontalDivider(color = Color(0xFFF0F0F0))
+                    Spacer(Modifier.height(16.dp))
+                    AdminRemarksBlock(status = pass.status, remarks = pass.remarks)
+                }
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun AdminRemarksBlock(status: String, remarks: String) {
+    val isAccepted = status == "ACCEPTED"
+    val bg = if (isAccepted) Color(0xFFECFDF5) else Color(0xFFFFEEEE)
+    val border = if (isAccepted) Color(0xFFA7F3D0) else Color(0xFFFCA5A5)
+    val title = if (isAccepted) "Remarks from admin" else "Reason for rejection"
+    val titleColor = if (isAccepted) Color(0xFF059669) else Color(0xFFE53935)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(bg)
+            .padding(14.dp)
+    ) {
+        Text(
+            title,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = titleColor,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            remarks,
+            fontSize = 14.sp,
+            color = Color(0xFF1A1A2E),
+        )
     }
 }
 

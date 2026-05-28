@@ -51,7 +51,8 @@ class BackendVisitorPassRepository : VisitorPassRepository {
                         relationshipWithVisitor = doc.getString("RelationshipWithVisitor") ?: "",
                         visitDate = (doc.get("VisitDate") as? Timestamp)?.toDate()?.time ?: 0L,
                         requestDate = (doc.get("RequestDate") as? Timestamp)?.toDate()?.time ?: 0L,
-                        status = doc.getString("Status") ?: "PENDING"
+                        status = doc.getString("Status") ?: "PENDING",
+                        remarks = doc.getString("Remarks") ?: "",
                     )
                 }
                 trySend(passes)

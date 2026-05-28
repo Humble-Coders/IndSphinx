@@ -51,14 +51,10 @@ struct LoginView: View {
 
                     // Compact branding header
                     HStack(spacing: 14) {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(navyBlue)
-                            .frame(width: 48, height: 48)
-                            .overlay {
-                                Image(systemName: "building.2")
-                                    .font(.system(size: 22, weight: .regular))
-                                    .foregroundColor(.white)
-                            }
+                        Image("AppLogo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 64, height: 64)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Welcome to Indsphinx")
                                 .font(.system(size: 18, weight: .bold))

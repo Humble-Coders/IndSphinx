@@ -1,5 +1,8 @@
 package com.humblesolutions.indsphinx
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -26,7 +29,14 @@ fun App(
     MaterialTheme(colorScheme = lightColorScheme()) {
         val navController = rememberNavController()
 
-        NavHost(navController = navController, startDestination = Screen.Splash.route) {
+        NavHost(
+            navController = navController,
+            startDestination = Screen.Splash.route,
+            enterTransition = { fadeIn(animationSpec = tween(400)) },
+            exitTransition = { fadeOut(animationSpec = tween(400)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(400)) },
+            popExitTransition = { fadeOut(animationSpec = tween(400)) }
+        ) {
             composable(Screen.Splash.route) {
                 SplashScreen(onSplashComplete = { destination ->
                     val route = when (destination) {
