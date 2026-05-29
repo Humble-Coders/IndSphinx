@@ -328,22 +328,23 @@ private fun ComplaintsLandingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Outlined.Menu, null,
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp).clickable { onMenuClick() }
-                )
+                Box(
+                    modifier = Modifier.size(40.dp).clickable { onMenuClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Menu, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                }
                 Text(
                     "Complaints",
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(Modifier.size(24.dp))
+                Spacer(Modifier.size(40.dp))
             }
         }
 

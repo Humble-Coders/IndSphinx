@@ -95,6 +95,16 @@ struct HomeView: View {
                         notifications: viewModel.notifications,
                         onMarkRead: { viewModel.markNotificationRead(notificationId: $0) },
                         onOpenQuestion: { qnId in pendingQnId = qnId },
+                        onOpenComplaint: {
+                            // Land on the Complaints tab; the existing list
+                            // and titles let the user pick the exact one.
+                            showNotifications = false
+                            selectedTab = 1
+                        },
+                        onOpenVisitorPass: {
+                            showNotifications = false
+                            showVisitorPass = true
+                        },
                         onBack: { showNotifications = false }
                     )
                     .toolbar(.hidden, for: .navigationBar)
@@ -221,6 +231,23 @@ struct HomeView: View {
             }
         }
         .onAppear {
+            // Drain any pending deep-link state captured by the AppDelegate
+            // before this view was mounted (cold-launch from a tray push).
+            // `.onChange` modifiers only fire on subsequent changes, not on
+            // the initial value, so they would miss this case otherwise.
+            if let pending = navState.pendingNoticeQuestionId, !pending.isEmpty {
+                pendingNoticeQuestionId = pending
+                navState.pendingNoticeQuestionId = nil
+            }
+            if let pending = navState.pendingQnId, !pending.isEmpty {
+                pendingQnId = pending
+                navState.pendingQnId = nil
+            }
+            if navState.pendingOpenNotifications {
+                showNotifications = true
+                navState.pendingOpenNotifications = false
+            }
+
             guard let docId = ready?.occupantDocId, !docId.isEmpty else { return }
             complaintsListener = BackendComplaintRepository().observeByOccupant(occupantId: docId) { all in
                 ongoingComplaints = Array(all.filter { $0.status != "CLOSED" }.prefix(4))
@@ -347,15 +374,17 @@ private struct HomeTopBarView: View {
                         .foregroundColor(.white)
                         .frame(width: 40, height: 40)
                     if unreadCount > 0 {
-                        ZStack {
-                            Circle()
-                                .fill(Color(red: 0.898, green: 0.224, blue: 0.208))
-                                .frame(width: 16, height: 16)
-                            Text(unreadCount > 9 ? "9+" : "\(unreadCount)")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                        .offset(x: 4, y: -4)
+                        Text(unreadCount > 9 ? "9+" : "\(unreadCount)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 5)
+                            .frame(minWidth: 18, minHeight: 18)
+                            .background(Capsule().fill(Color(red: 0.898, green: 0.224, blue: 0.208)))
+                            .overlay(Capsule().stroke(Color.white, lineWidth: 1.5))
+                            .offset(x: 6, y: -2)
+                            .dynamicTypeSize(.medium)
                     }
                 }
             }
@@ -1075,7 +1104,9 @@ private struct FormDueOverlay: View {
 struct NotificationsView: View {
     let notifications: [AppNotification]
     let onMarkRead: (String) -> Void
-    let onOpenQuestion: (String) -> Void
+    let onOpenQuestion:    (String) -> Void
+    let onOpenComplaint:   () -> Void
+    let onOpenVisitorPass: () -> Void
     let onBack: () -> Void
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
@@ -1120,18 +1151,31 @@ struct NotificationsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 10) {
                         ForEach(notifications) { notification in
-                            let isQuestion = notification.type == "question_notification" && !notification.qnId.isEmpty
+                            // Classify by the Firestore `source` so the row's
+                            // tap can deep-link to the right detail screen.
+                            // Notifications without a deep-link source just
+                            // mark themselves as read, as before.
+                            let source = notification.type
+                            let isQuestion    = source == "question_notification" && !notification.qnId.isEmpty
+                            let isComplaint   = source.hasPrefix("complaint_")
+                            let isVisitorPass = source.hasPrefix("visitor_pass_")
+                            let isActionable  = isQuestion || isComplaint || isVisitorPass
+
                             NotificationItemView(
                                 notification: notification,
                                 navyBlue: navyBlue,
                                 dateFormatter: dateFormatter,
-                                isActionable: isQuestion,
+                                isActionable: isActionable,
                                 onTap: {
                                     if !notification.isRead {
                                         onMarkRead(notification.id)
                                     }
                                     if isQuestion {
                                         onOpenQuestion(notification.qnId)
+                                    } else if isComplaint {
+                                        onOpenComplaint()
+                                    } else if isVisitorPass {
+                                        onOpenVisitorPass()
                                     }
                                 }
                             )

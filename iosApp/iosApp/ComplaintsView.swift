@@ -217,21 +217,22 @@ private struct ComplaintsLandingView: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
-                HStack {
+                HStack(alignment: .center, spacing: 0) {
                     Button(action: onMenuTap) {
                         Image(systemName: "line.3.horizontal")
                             .font(.system(size: 20))
                             .foregroundColor(.white)
+                            .frame(width: 40, height: 40)
                     }
                     Spacer()
                     Text("Complaints")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
                     Spacer()
-                    Color.clear.frame(width: 20, height: 20)
+                    Color.clear.frame(width: 40, height: 40)
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 16)
+                .padding(.vertical, 14)
                 .background(navyBlue.ignoresSafeArea(edges: .top))
 
                 VStack(spacing: 14) {

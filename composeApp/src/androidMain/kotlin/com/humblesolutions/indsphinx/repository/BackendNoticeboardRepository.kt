@@ -1,5 +1,6 @@
 package com.humblesolutions.indsphinx.repository
 
+import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -46,22 +47,34 @@ class BackendNoticeboardRepository : NoticeboardRepository {
     ) {
         val responseRef = db.collection("NoticeBoard").document(noticeId)
             .collection("responses").document(uid)
-        val parentRef = db.collection("NoticeBoard").document(noticeId)
 
-        db.runTransaction { tx ->
-            val isNew = !tx.get(responseRef).exists()
-            val data = mapOf(
-                "uid" to uid,
-                "displayName" to displayName,
-                "flatNo" to flatNo,
-                "recipientType" to recipientType,
-                "selectedOptions" to selectedOptions,
-                "textResponse" to textResponse,
-                "submittedAt" to FieldValue.serverTimestamp()
-            )
-            tx.set(responseRef, data, SetOptions.merge())
-            if (isNew) tx.update(parentRef, "responseCount", FieldValue.increment(1))
-        }.await()
+        val data = mapOf(
+            "uid" to uid,
+            "displayName" to displayName,
+            "flatNo" to flatNo,
+            "recipientType" to recipientType,
+            "selectedOptions" to selectedOptions,
+            "textResponse" to textResponse,
+            "submittedAt" to FieldValue.serverTimestamp()
+        )
+        // The parent `NoticeBoard/{id}` doc is admin-write only per Firestore
+        // rules. Earlier this method ran a transaction that incremented the
+        // parent's `responseCount` — that write failed with PERMISSION_DENIED,
+        // rolled back the whole transaction, and the user saw nothing happen
+        // when they tapped Submit. The aggregate is now maintained by the
+        // `onNoticeBoardResponseCreated` Cloud Function trigger.
+        Log.d(TAG, "submitResponse: noticeId=$noticeId uid=$uid options=${selectedOptions.size} hasText=${textResponse.isNotEmpty()}")
+        try {
+            responseRef.set(data, SetOptions.merge()).await()
+            Log.d(TAG, "submitResponse: success noticeId=$noticeId uid=$uid")
+        } catch (e: Exception) {
+            Log.e(TAG, "submitResponse: FAILED noticeId=$noticeId uid=$uid", e)
+            throw e
+        }
+    }
+
+    private companion object {
+        private const val TAG = "NoticeBoardFlow"
     }
 
     private fun com.google.firebase.firestore.DocumentSnapshot.toNotice(): Notice? {

@@ -12,4 +12,10 @@ data class AppNotification(
     // the backend trigger via `context.qnId` for question-type notifications.
     // When present, tapping the row should deep-link to the question screen.
     val qnId: String = "",
+    // Optional reference to a Complaints/{complaintId} doc. Populated via
+    // `context.complaintId` for complaint status notifications.
+    val complaintId: String = "",
+    // Optional reference to a VisitorPass/{passId} doc. Populated via
+    // `context.passId` for visitor-pass status notifications.
+    val passId: String = "",
 )

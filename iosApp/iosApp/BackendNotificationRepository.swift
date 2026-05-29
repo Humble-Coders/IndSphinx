@@ -12,6 +12,10 @@ struct AppNotification: Identifiable {
     // Populated from `context.qnId` for question-type notifications.
     // When non-empty, tapping the row should open the question screen.
     let qnId: String
+    // Populated from `context.complaintId` for complaint status pushes.
+    let complaintId: String
+    // Populated from `context.passId` for visitor-pass status pushes.
+    let passId: String
 }
 
 class BackendNotificationRepository {
@@ -40,7 +44,9 @@ class BackendNotificationRepository {
                     let createdAt = (doc.data()["sentAt"] as? Timestamp)?.dateValue() ?? Date()
                     let type = doc.data()["source"] as? String ?? ""
                     let context = doc.data()["context"] as? [String: Any]
-                    let qnId = (context?["qnId"] as? String) ?? ""
+                    let qnId        = (context?["qnId"]        as? String) ?? ""
+                    let complaintId = (context?["complaintId"] as? String) ?? ""
+                    let passId      = (context?["passId"]      as? String) ?? ""
                     return AppNotification(
                         id: doc.documentID,
                         occupantId: occupantId,
@@ -49,7 +55,9 @@ class BackendNotificationRepository {
                         isRead: isRead,
                         createdAt: createdAt,
                         type: type,
-                        qnId: qnId
+                        qnId: qnId,
+                        complaintId: complaintId,
+                        passId: passId
                     )
                 }
                 onChange(notifications)

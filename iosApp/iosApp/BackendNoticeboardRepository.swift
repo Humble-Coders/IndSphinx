@@ -50,34 +50,28 @@ class BackendNoticeboardRepository {
     ) async throws {
         let responseRef = db.collection("NoticeBoard").document(noticeId)
             .collection("responses").document(uid)
-        let parentRef = db.collection("NoticeBoard").document(noticeId)
 
-        _ = try await db.runTransaction { transaction, errorPointer in
-            let snap: DocumentSnapshot
-            do {
-                snap = try transaction.getDocument(responseRef)
-            } catch let e as NSError {
-                errorPointer?.pointee = e
-                return nil
-            }
-            let isNew = !snap.exists
-            let data: [String: Any] = [
-                "uid": uid,
-                "displayName": displayName,
-                "flatNo": flatNo,
-                "recipientType": recipientType,
-                "selectedOptions": selectedOptions,
-                "textResponse": textResponse,
-                "submittedAt": FieldValue.serverTimestamp()
-            ]
-            transaction.setData(data, forDocument: responseRef, merge: true)
-            if isNew {
-                transaction.updateData(
-                    ["responseCount": FieldValue.increment(Int64(1))],
-                    forDocument: parentRef
-                )
-            }
-            return nil
+        let data: [String: Any] = [
+            "uid": uid,
+            "displayName": displayName,
+            "flatNo": flatNo,
+            "recipientType": recipientType,
+            "selectedOptions": selectedOptions,
+            "textResponse": textResponse,
+            "submittedAt": FieldValue.serverTimestamp()
+        ]
+        // The parent `NoticeBoard/{id}` doc is admin-write only per Firestore
+        // rules; an earlier transaction tried to increment its responseCount
+        // and failed with PERMISSION_DENIED, swallowing the response write.
+        // The counter is now maintained by the
+        // `onNoticeBoardResponseCreated` Cloud Function trigger.
+        print("[NoticeBoardFlow] submitResponse: noticeId=\(noticeId) uid=\(uid) options=\(selectedOptions.count) hasText=\(!textResponse.isEmpty)")
+        do {
+            try await responseRef.setData(data, merge: true)
+            print("[NoticeBoardFlow] submitResponse: success noticeId=\(noticeId) uid=\(uid)")
+        } catch {
+            print("[NoticeBoardFlow] submitResponse: FAILED noticeId=\(noticeId) uid=\(uid) error=\(error)")
+            throw error
         }
     }
 }

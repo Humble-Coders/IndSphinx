@@ -58,20 +58,23 @@ private struct NoticeboardHeaderView: View {
     let onMenuTap: () -> Void
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(alignment: .center, spacing: 0) {
             Button(action: onMenuTap) {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 20))
                     .foregroundColor(.white)
+                    .frame(width: 40, height: 40)
             }
+            Spacer().frame(width: 12)
             Text("Noticeboard")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.white)
             Spacer()
+            Color.clear.frame(width: 40, height: 40)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 16)
-        .background(navyBlue)
+        .padding(.vertical, 14)
+        .background(navyBlue.ignoresSafeArea(edges: .top))
     }
 }
 

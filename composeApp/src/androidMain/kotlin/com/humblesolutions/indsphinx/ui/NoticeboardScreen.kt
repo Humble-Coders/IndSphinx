@@ -126,17 +126,16 @@ private fun NoticeboardHeader(onMenuClick: () -> Unit, onBack: (() -> Unit)?) {
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Outlined.Menu, null,
-                tint = Color.White,
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable { onMenuClick() }
-            )
-            Spacer(Modifier.width(16.dp))
+            Box(
+                modifier = Modifier.size(40.dp).clickable { onMenuClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.Menu, null, tint = Color.White, modifier = Modifier.size(24.dp))
+            }
+            Spacer(Modifier.width(12.dp))
             Text(
                 "Noticeboard",
                 fontSize = 18.sp,
@@ -144,6 +143,7 @@ private fun NoticeboardHeader(onMenuClick: () -> Unit, onBack: (() -> Unit)?) {
                 color = Color.White,
                 modifier = Modifier.weight(1f)
             )
+            Spacer(Modifier.size(40.dp))
         }
     }
 }

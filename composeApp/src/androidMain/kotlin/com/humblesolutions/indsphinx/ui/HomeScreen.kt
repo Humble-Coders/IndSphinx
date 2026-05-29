@@ -10,11 +10,14 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -299,6 +302,16 @@ fun HomeScreen(
                 notifications = notifications,
                 onMarkRead = { viewModel.markNotificationRead(it) },
                 onOpenQuestion = { qnId -> overlay = HomeOverlay.QuestionNotification(qnId) },
+                onOpenComplaint = {
+                    // Land on the Complaints tab with the existing list; the
+                    // notification title makes it obvious which complaint
+                    // the row refers to. No extra Firestore read needed.
+                    overlay = HomeOverlay.None
+                    selectedTab = 1
+                },
+                onOpenVisitorPass = {
+                    overlay = HomeOverlay.VisitorPass
+                },
                 onBack = { overlay = HomeOverlay.None }
             )
             is HomeOverlay.NoticeQuestion -> NoticeQuestionScreen(
@@ -539,17 +552,22 @@ private fun HomeTopBar(
                 if (unreadCount > 0) {
                     Box(
                         modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
+                            .align(Alignment.TopEnd)
+                            .offset(x = 4.dp, y = (-2).dp)
+                            .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
+                            .clip(RoundedCornerShape(50))
                             .background(Color(0xFFE53935))
-                            .align(Alignment.TopEnd),
+                            .border(width = 1.5.dp, color = Color.White, shape = RoundedCornerShape(50))
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = if (unreadCount > 9) "9+" else unreadCount.toString(),
                             color = Color.White,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 10.sp,
+                            lineHeight = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                     }
                 }
@@ -1416,7 +1434,9 @@ private fun AmenityCheckRow(amenity: String, checked: Boolean, onToggle: () -> U
 private fun NotificationsScreen(
     notifications: List<AppNotification>,
     onMarkRead: (String) -> Unit,
-    onOpenQuestion: (String) -> Unit,
+    onOpenQuestion:    (String) -> Unit,
+    onOpenComplaint:   () -> Unit,
+    onOpenVisitorPass: () -> Unit,
     onBack: () -> Unit
 ) {
     val dateFormatter = remember { java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault()) }
@@ -1467,15 +1487,28 @@ private fun NotificationsScreen(
             ) {
                 Spacer(Modifier.height(16.dp))
                 notifications.forEach { notification ->
-                    val isQuestion = notification.type == "question_notification" &&
-                        notification.qnId.isNotEmpty()
+                    // Classify the notification by its `source` (mapped from
+                    // the Firestore `source` field) so the tap can deep-link
+                    // to the right detail screen. Old notifications without
+                    // a deep-link source just behave as before.
+                    val source = notification.type
+                    val isQuestion =
+                        source == "question_notification" && notification.qnId.isNotEmpty()
+                    val isComplaint = source.startsWith("complaint_")
+                    val isVisitorPass = source.startsWith("visitor_pass_")
+                    val isActionable = isQuestion || isComplaint || isVisitorPass
+
                     NotificationItem(
                         notification = notification,
                         dateFormatter = dateFormatter,
-                        isActionable = isQuestion,
+                        isActionable = isActionable,
                         onClick = {
                             if (!notification.isRead) onMarkRead(notification.id)
-                            if (isQuestion) onOpenQuestion(notification.qnId)
+                            when {
+                                isQuestion    -> onOpenQuestion(notification.qnId)
+                                isComplaint   -> onOpenComplaint()
+                                isVisitorPass -> onOpenVisitorPass()
+                            }
                         },
                     )
                     Spacer(Modifier.height(10.dp))
