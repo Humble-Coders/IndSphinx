@@ -16,6 +16,10 @@ struct AppNotification: Identifiable {
     let complaintId: String
     // Populated from `context.passId` for visitor-pass status pushes.
     let passId: String
+    // Populated from `context.vacantRequestId` for flat-vacant-request
+    // status pushes. When non-empty, tapping the row should open the
+    // Flat Vacant Request screen.
+    let vacantRequestId: String
 }
 
 class BackendNotificationRepository {
@@ -44,9 +48,10 @@ class BackendNotificationRepository {
                     let createdAt = (doc.data()["sentAt"] as? Timestamp)?.dateValue() ?? Date()
                     let type = doc.data()["source"] as? String ?? ""
                     let context = doc.data()["context"] as? [String: Any]
-                    let qnId        = (context?["qnId"]        as? String) ?? ""
-                    let complaintId = (context?["complaintId"] as? String) ?? ""
-                    let passId      = (context?["passId"]      as? String) ?? ""
+                    let qnId            = (context?["qnId"]            as? String) ?? ""
+                    let complaintId     = (context?["complaintId"]     as? String) ?? ""
+                    let passId          = (context?["passId"]          as? String) ?? ""
+                    let vacantRequestId = (context?["vacantRequestId"] as? String) ?? ""
                     return AppNotification(
                         id: doc.documentID,
                         occupantId: occupantId,
@@ -57,7 +62,8 @@ class BackendNotificationRepository {
                         type: type,
                         qnId: qnId,
                         complaintId: complaintId,
-                        passId: passId
+                        passId: passId,
+                        vacantRequestId: vacantRequestId
                     )
                 }
                 onChange(notifications)

@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var showFeedback = false
     @State private var showDocuments = false
     @State private var showCoordinatorForm = false
+    @State private var showFlatVacant = false
     @State private var pendingComplaintAction: ComplaintStartAction? = nil
     @State private var pendingNotice: Notice? = nil
     @State private var showLogoutConfirmation = false
@@ -105,6 +106,10 @@ struct HomeView: View {
                             showNotifications = false
                             showVisitorPass = true
                         },
+                        onOpenVacantRequest: {
+                            showNotifications = false
+                            showFlatVacant = true
+                        },
                         onBack: { showNotifications = false }
                     )
                     .toolbar(.hidden, for: .navigationBar)
@@ -195,6 +200,10 @@ struct HomeView: View {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     showCoordinatorForm = true
                 },
+                onNavigateToFlatVacant: {
+                    withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
+                    showFlatVacant = true
+                },
                 onSignOut: {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     showLogoutConfirmation = true
@@ -222,6 +231,26 @@ struct HomeView: View {
             showNotifications = true
             navState.pendingOpenNotifications = false
         }
+        .onChange(of: navState.pendingOpenComplaints) { open in
+            guard open else { return }
+            // Land on the Complaints tab; the existing list and titles tell
+            // the user which complaint the push referred to.
+            showNotifications = false
+            selectedTab = 1
+            navState.pendingOpenComplaints = false
+        }
+        .onChange(of: navState.pendingOpenVisitorPass) { open in
+            guard open else { return }
+            showNotifications = false
+            showVisitorPass = true
+            navState.pendingOpenVisitorPass = false
+        }
+        .onChange(of: navState.pendingOpenVacantRequest) { open in
+            guard open else { return }
+            showNotifications = false
+            showFlatVacant = true
+            navState.pendingOpenVacantRequest = false
+        }
         .onChange(of: ready?.occupantDocId) { docId in
             complaintsListener?.remove()
             complaintsListener = nil
@@ -246,6 +275,18 @@ struct HomeView: View {
             if navState.pendingOpenNotifications {
                 showNotifications = true
                 navState.pendingOpenNotifications = false
+            }
+            if navState.pendingOpenComplaints {
+                selectedTab = 1
+                navState.pendingOpenComplaints = false
+            }
+            if navState.pendingOpenVisitorPass {
+                showVisitorPass = true
+                navState.pendingOpenVisitorPass = false
+            }
+            if navState.pendingOpenVacantRequest {
+                showFlatVacant = true
+                navState.pendingOpenVacantRequest = false
             }
 
             guard let docId = ready?.occupantDocId, !docId.isEmpty else { return }
@@ -304,6 +345,15 @@ struct HomeView: View {
                 coordinatorName: ready?.name ?? "",
                 flatNumber: ready?.flatNumber ?? "",
                 onBack: { showCoordinatorForm = false }
+            )
+        }
+        .fullScreenCover(isPresented: $showFlatVacant) {
+            FlatVacantRequestView(
+                occupantId: ready?.occupantDocId ?? "",
+                occupantName: ready?.name ?? "",
+                flatId: ready?.flatId ?? "",
+                flatNumber: ready?.flatNumber ?? "",
+                onBack: { showFlatVacant = false }
             )
         }
         // Notifications is now pushed via NavigationStack from the home tab,
@@ -465,6 +515,7 @@ private struct DrawerContentView: View {
     let onNavigateToDocuments: () -> Void
     let isCoordinator: Bool
     let onNavigateToCoordinatorForm: () -> Void
+    let onNavigateToFlatVacant: () -> Void
     let onSignOut: () -> Void
 
     private var safeAreaTop: CGFloat {
@@ -495,6 +546,7 @@ private struct DrawerContentView: View {
                 DrawerMenuItemView(systemIcon: "bell", label: "Notice Board", action: onNavigateToNoticeboard)
                 DrawerMenuItemView(systemIcon: "bubble.left", label: "Feedback", action: onNavigateToFeedback)
                 DrawerMenuItemView(systemIcon: "folder", label: "Documents", action: onNavigateToDocuments)
+                DrawerMenuItemView(systemIcon: "figure.walk.departure", label: "Flat Vacant Request", action: onNavigateToFlatVacant)
                 if isCoordinator {
                     DrawerMenuItemView(systemIcon: "star", label: "Monthly Form", action: onNavigateToCoordinatorForm)
                 }
@@ -1104,9 +1156,10 @@ private struct FormDueOverlay: View {
 struct NotificationsView: View {
     let notifications: [AppNotification]
     let onMarkRead: (String) -> Void
-    let onOpenQuestion:    (String) -> Void
-    let onOpenComplaint:   () -> Void
-    let onOpenVisitorPass: () -> Void
+    let onOpenQuestion:      (String) -> Void
+    let onOpenComplaint:     () -> Void
+    let onOpenVisitorPass:   () -> Void
+    let onOpenVacantRequest: () -> Void
     let onBack: () -> Void
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
@@ -1156,10 +1209,11 @@ struct NotificationsView: View {
                             // Notifications without a deep-link source just
                             // mark themselves as read, as before.
                             let source = notification.type
-                            let isQuestion    = source == "question_notification" && !notification.qnId.isEmpty
-                            let isComplaint   = source.hasPrefix("complaint_")
-                            let isVisitorPass = source.hasPrefix("visitor_pass_")
-                            let isActionable  = isQuestion || isComplaint || isVisitorPass
+                            let isQuestion      = source == "question_notification" && !notification.qnId.isEmpty
+                            let isComplaint     = source.hasPrefix("complaint_")
+                            let isVisitorPass   = source.hasPrefix("visitor_pass_")
+                            let isVacantRequest = source.hasPrefix("vacant_request_")
+                            let isActionable    = isQuestion || isComplaint || isVisitorPass || isVacantRequest
 
                             NotificationItemView(
                                 notification: notification,
@@ -1176,6 +1230,8 @@ struct NotificationsView: View {
                                         onOpenComplaint()
                                     } else if isVisitorPass {
                                         onOpenVisitorPass()
+                                    } else if isVacantRequest {
+                                        onOpenVacantRequest()
                                     }
                                 }
                             )

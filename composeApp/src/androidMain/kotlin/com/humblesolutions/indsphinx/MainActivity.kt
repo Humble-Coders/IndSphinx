@@ -80,13 +80,18 @@ class MainActivity : ComponentActivity() {
                     val qnId = intent.getStringExtra(IndSphinxMessagingService.EXTRA_QN_ID) ?: return null
                     PendingDeepLink.QuestionNotification(qnId)
                 }
+                IndSphinxMessagingService.DEEP_LINK_COMPLAINT          -> PendingDeepLink.Complaint
+                IndSphinxMessagingService.DEEP_LINK_VISITOR_PASS       -> PendingDeepLink.VisitorPass
+                IndSphinxMessagingService.DEEP_LINK_VACANT_REQUEST     -> PendingDeepLink.FlatVacantRequest
                 IndSphinxMessagingService.DEEP_LINK_OPEN_NOTIFICATIONS -> PendingDeepLink.OpenNotifications
                 else -> null
             }
         }
 
         // Path 2 — raw FCM data keys forwarded by Android's default handler
-        // when the tray notification was tapped from the background.
+        // when the tray notification was tapped from the background. Every
+        // recognised type routes to a screen; anything else falls back to
+        // the in-app notifications list (never the bare Home screen).
         val fcmType       = intent.getStringExtra("type") ?: return null
         val fcmNoticeType = intent.getStringExtra("noticeType").orEmpty()
         val fcmNoticeId   = intent.getStringExtra("noticeId").orEmpty()
@@ -97,9 +102,12 @@ class MainActivity : ComponentActivity() {
                 PendingDeepLink.NoticeQuestion(fcmNoticeId)
             fcmType == "QUESTION_NOTIFICATION" && fcmQnId.isNotEmpty() ->
                 PendingDeepLink.QuestionNotification(fcmQnId)
-            fcmType == "TARGETED_NOTIFICATION" ->
-                PendingDeepLink.OpenNotifications
-            else -> null
+            fcmType == "COMPLAINT"      -> PendingDeepLink.Complaint
+            fcmType == "VISITOR_PASS"   -> PendingDeepLink.VisitorPass
+            fcmType == "VACANT_REQUEST" -> PendingDeepLink.FlatVacantRequest
+            // TARGETED_NOTIFICATION and any unknown-but-non-empty type
+            // → open the in-app notifications list.
+            else -> PendingDeepLink.OpenNotifications
         }
     }
 

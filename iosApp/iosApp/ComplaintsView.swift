@@ -1,3 +1,6 @@
+// Client requested that "Worker" be displayed as "Technician" in the UI only.
+// Underlying data model, field names (WorkerName, WorkerUid, WorkerRemarks,
+// WorkerMedia), and backend identifiers continue to use "worker".
 import SwiftUI
 import PhotosUI
 import AVKit
@@ -1456,7 +1459,7 @@ private struct ComplaintDetailView: View {
                                         .foregroundColor(navyBlue)
                                 }
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Assigned Worker")
+                                Text("Assigned Technician")
                                     .font(.system(size: 12))
                                     .foregroundColor(Color(white: 0.53))
                                 Text(complaint.workerName)
@@ -1475,7 +1478,7 @@ private struct ComplaintDetailView: View {
                     if complaint.status.uppercased() == "COMPLETED" || complaint.status.uppercased() == "CLOSED" {
                         if !complaint.workerRemarks.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Worker Remarks")
+                                Text("Technician Remarks")
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(Color(red: 0.18, green: 0.49, blue: 0.20))
                                 Text(complaint.workerRemarks)

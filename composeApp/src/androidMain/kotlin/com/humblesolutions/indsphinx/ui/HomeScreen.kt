@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Add
@@ -109,6 +110,7 @@ private sealed class HomeOverlay {
     object Feedback : HomeOverlay()
     object Documents : HomeOverlay()
     object CoordinatorForm : HomeOverlay()
+    object FlatVacant : HomeOverlay()
     object Notifications : HomeOverlay()
     data class NoticeQuestion(val noticeId: String) : HomeOverlay()
     data class QuestionNotification(val qnId: String) : HomeOverlay()
@@ -186,6 +188,21 @@ fun HomeScreen(
             }
             is com.humblesolutions.indsphinx.PendingDeepLink.QuestionNotification -> {
                 overlay = HomeOverlay.QuestionNotification(dl.qnId)
+                onDeepLinkConsumed()
+            }
+            com.humblesolutions.indsphinx.PendingDeepLink.Complaint -> {
+                // Land on the Complaints tab; the existing list and titles
+                // tell the user which complaint the push referred to.
+                overlay = HomeOverlay.None
+                selectedTab = 1
+                onDeepLinkConsumed()
+            }
+            com.humblesolutions.indsphinx.PendingDeepLink.VisitorPass -> {
+                overlay = HomeOverlay.VisitorPass
+                onDeepLinkConsumed()
+            }
+            com.humblesolutions.indsphinx.PendingDeepLink.FlatVacantRequest -> {
+                overlay = HomeOverlay.FlatVacant
                 onDeepLinkConsumed()
             }
             com.humblesolutions.indsphinx.PendingDeepLink.OpenNotifications -> {
@@ -298,6 +315,13 @@ fun HomeScreen(
                 flatNumber = flatNumber,
                 onBack = { overlay = HomeOverlay.None }
             )
+            is HomeOverlay.FlatVacant -> FlatVacantRequestScreen(
+                occupantId = occupantDocId,
+                occupantName = name,
+                flatId = flatId,
+                flatNumber = flatNumber,
+                onBack = { overlay = HomeOverlay.None }
+            )
             is HomeOverlay.Notifications -> NotificationsScreen(
                 notifications = notifications,
                 onMarkRead = { viewModel.markNotificationRead(it) },
@@ -311,6 +335,9 @@ fun HomeScreen(
                 },
                 onOpenVisitorPass = {
                     overlay = HomeOverlay.VisitorPass
+                },
+                onOpenVacantRequest = {
+                    overlay = HomeOverlay.FlatVacant
                 },
                 onBack = { overlay = HomeOverlay.None }
             )
@@ -363,6 +390,10 @@ fun HomeScreen(
                             onNavigateToCoordinatorForm = {
                                 scope.launch { drawerState.close() }
                                 overlay = HomeOverlay.CoordinatorForm
+                            },
+                            onNavigateToFlatVacant = {
+                                scope.launch { drawerState.close() }
+                                overlay = HomeOverlay.FlatVacant
                             },
                             onSignOut = { showLogoutConfirmation = true }
                         )
@@ -659,6 +690,7 @@ private fun HomeDrawerContent(
     onNavigateToNoticeboard: () -> Unit = {},
     onNavigateToDocuments: () -> Unit = {},
     onNavigateToCoordinatorForm: () -> Unit = {},
+    onNavigateToFlatVacant: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
@@ -687,6 +719,7 @@ private fun HomeDrawerContent(
             DrawerMenuItem(icon = Icons.Outlined.NotificationsNone, label = "Notice Board", onClick = onNavigateToNoticeboard)
             DrawerMenuItem(icon = Icons.Outlined.ChatBubbleOutline, label = "Feedback", onClick = onNavigateToFeedback)
             DrawerMenuItem(icon = Icons.Outlined.Info, label = "Documents", onClick = onNavigateToDocuments)
+            DrawerMenuItem(icon = Icons.AutoMirrored.Outlined.ExitToApp, label = "Flat Vacant Request", onClick = onNavigateToFlatVacant)
             if (isCoordinator) {
                 HorizontalDivider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 4.dp))
                 DrawerMenuItem(icon = Icons.Outlined.StarBorder, label = "Monthly Form", onClick = onNavigateToCoordinatorForm)
@@ -1434,9 +1467,10 @@ private fun AmenityCheckRow(amenity: String, checked: Boolean, onToggle: () -> U
 private fun NotificationsScreen(
     notifications: List<AppNotification>,
     onMarkRead: (String) -> Unit,
-    onOpenQuestion:    (String) -> Unit,
-    onOpenComplaint:   () -> Unit,
-    onOpenVisitorPass: () -> Unit,
+    onOpenQuestion:      (String) -> Unit,
+    onOpenComplaint:     () -> Unit,
+    onOpenVisitorPass:   () -> Unit,
+    onOpenVacantRequest: () -> Unit,
     onBack: () -> Unit
 ) {
     val dateFormatter = remember { java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault()) }
@@ -1494,9 +1528,10 @@ private fun NotificationsScreen(
                     val source = notification.type
                     val isQuestion =
                         source == "question_notification" && notification.qnId.isNotEmpty()
-                    val isComplaint = source.startsWith("complaint_")
-                    val isVisitorPass = source.startsWith("visitor_pass_")
-                    val isActionable = isQuestion || isComplaint || isVisitorPass
+                    val isComplaint     = source.startsWith("complaint_")
+                    val isVisitorPass   = source.startsWith("visitor_pass_")
+                    val isVacantRequest = source.startsWith("vacant_request_")
+                    val isActionable    = isQuestion || isComplaint || isVisitorPass || isVacantRequest
 
                     NotificationItem(
                         notification = notification,
@@ -1505,9 +1540,10 @@ private fun NotificationsScreen(
                         onClick = {
                             if (!notification.isRead) onMarkRead(notification.id)
                             when {
-                                isQuestion    -> onOpenQuestion(notification.qnId)
-                                isComplaint   -> onOpenComplaint()
-                                isVisitorPass -> onOpenVisitorPass()
+                                isQuestion      -> onOpenQuestion(notification.qnId)
+                                isComplaint     -> onOpenComplaint()
+                                isVisitorPass   -> onOpenVisitorPass()
+                                isVacantRequest -> onOpenVacantRequest()
                             }
                         },
                     )

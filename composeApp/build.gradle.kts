@@ -61,8 +61,8 @@ android {
         applicationId = "com.humblesolutions.indsphinx"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 7
-        versionName = "1.7"
+        versionCode = 9
+        versionName = "1.9"
     }
     packaging {
         resources {

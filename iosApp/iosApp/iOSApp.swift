@@ -13,6 +13,13 @@ class AppNavigationState: ObservableObject {
     /// Set when the user taps a system tray push for a normal targeted
     /// notification — opens the in-app notifications list.
     @Published var pendingOpenNotifications: Bool = false
+    /// Set when the user taps a complaint push — routes to the Complaints tab.
+    @Published var pendingOpenComplaints: Bool = false
+    /// Set when the user taps a visitor-pass push — routes to the Visitor Pass screen.
+    @Published var pendingOpenVisitorPass: Bool = false
+    /// Set when the user taps a flat-vacant-request push — routes to the
+    /// Flat Vacant Request screen.
+    @Published var pendingOpenVacantRequest: Bool = false
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
@@ -135,20 +142,29 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
-        let userInfo = response.notification.request.content.userInfo
-        let type = userInfo["type"] as? String ?? ""
+        let userInfo   = response.notification.request.content.userInfo
+        let type       = userInfo["type"]       as? String ?? ""
         let noticeType = userInfo["noticeType"] as? String ?? ""
-        let noticeId = userInfo["noticeId"] as? String ?? ""
-        let qnId = userInfo["qnId"] as? String ?? ""
+        let noticeId   = userInfo["noticeId"]   as? String ?? ""
+        let qnId       = userInfo["qnId"]       as? String ?? ""
 
         print("\(tag) didReceive notification tap: type=\(type) noticeType=\(noticeType) noticeId=\(noticeId) qnId=\(qnId)")
 
         Task { @MainActor in
+            // Specific-target routing first.
             if type == "NOTICE_BOARD" && noticeType == "question" && !noticeId.isEmpty {
                 AppNavigationState.shared.pendingNoticeQuestionId = noticeId
             } else if type == "QUESTION_NOTIFICATION" && !qnId.isEmpty {
                 AppNavigationState.shared.pendingQnId = qnId
-            } else if type == "TARGETED_NOTIFICATION" {
+            } else if type == "COMPLAINT" {
+                AppNavigationState.shared.pendingOpenComplaints = true
+            } else if type == "VISITOR_PASS" {
+                AppNavigationState.shared.pendingOpenVisitorPass = true
+            } else if type == "VACANT_REQUEST" {
+                AppNavigationState.shared.pendingOpenVacantRequest = true
+            } else {
+                // TARGETED_NOTIFICATION and any unknown/missing type
+                // → open the in-app notifications list (never the bare Home screen).
                 AppNavigationState.shared.pendingOpenNotifications = true
             }
         }

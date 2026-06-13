@@ -18,4 +18,8 @@ data class AppNotification(
     // Optional reference to a VisitorPass/{passId} doc. Populated via
     // `context.passId` for visitor-pass status notifications.
     val passId: String = "",
+    // Optional reference to a FlatVacantRequests/{vacantRequestId} doc.
+    // Populated via `context.vacantRequestId` for vacant-request status
+    // notifications.
+    val vacantRequestId: String = "",
 )

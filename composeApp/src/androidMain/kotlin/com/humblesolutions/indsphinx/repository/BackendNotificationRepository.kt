@@ -35,9 +35,10 @@ class BackendNotificationRepository : NotificationRepository {
                     val createdAt = (doc.get("sentAt") as? Timestamp)?.toDate()?.time ?: 0L
                     val type = doc.getString("source") ?: ""
                     val context = doc.get("context") as? Map<*, *>
-                    val qnId        = (context?.get("qnId")        as? String) ?: ""
-                    val complaintId = (context?.get("complaintId") as? String) ?: ""
-                    val passId      = (context?.get("passId")      as? String) ?: ""
+                    val qnId             = (context?.get("qnId")             as? String) ?: ""
+                    val complaintId      = (context?.get("complaintId")      as? String) ?: ""
+                    val passId           = (context?.get("passId")           as? String) ?: ""
+                    val vacantRequestId  = (context?.get("vacantRequestId")  as? String) ?: ""
                     AppNotification(
                         id = doc.id,
                         occupantId = occupantId,
@@ -49,6 +50,7 @@ class BackendNotificationRepository : NotificationRepository {
                         qnId = qnId,
                         complaintId = complaintId,
                         passId = passId,
+                        vacantRequestId = vacantRequestId,
                     )
                 }
                 trySend(notifications)

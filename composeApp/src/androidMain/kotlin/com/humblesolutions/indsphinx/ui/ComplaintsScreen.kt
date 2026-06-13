@@ -1,3 +1,6 @@
+// Client requested that "Worker" be displayed as "Technician" in the UI only.
+// Underlying data model, field names (WorkerName, WorkerUid, WorkerRemarks,
+// WorkerMedia), and backend identifiers continue to use "worker".
 package com.humblesolutions.indsphinx.ui
 
 import android.Manifest
@@ -1691,7 +1694,7 @@ private fun ComplaintDetailScreen(
                             }
                             Spacer(Modifier.width(12.dp))
                             Column {
-                                Text("Assigned Worker", fontSize = 12.sp, color = Color(0xFF888888))
+                                Text("Assigned Technician", fontSize = 12.sp, color = Color(0xFF888888))
                                 Text(complaint.workerName, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A1A2E))
                             }
                         }
@@ -1708,7 +1711,7 @@ private fun ComplaintDetailScreen(
                             elevation = CardDefaults.cardElevation(1.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Worker Remarks", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF2E7D32))
+                                Text("Technician Remarks", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF2E7D32))
                                 Spacer(Modifier.height(8.dp))
                                 Text(complaint.workerRemarks, fontSize = 14.sp, color = Color(0xFF1A1A2E))
                             }
