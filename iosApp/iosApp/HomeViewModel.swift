@@ -60,13 +60,13 @@ class HomeViewModel: ObservableObject {
         do {
             let profile = try await userProfileRepository.getProfile(uid: user.uid)
             guard profile.enabled else {
-                try? authRepository.signOut()
+                await authRepository.signOutAndClearFcm()
                 state = .accessDenied(reason: "Your account has been disabled. Please contact the admin.")
                 shouldSignOut = true
                 return
             }
             guard profile.role == "OCCUPANT" || profile.role == "COORDINATOR" else {
-                try? authRepository.signOut()
+                await authRepository.signOutAndClearFcm()
                 state = .accessDenied(reason: "Access is restricted to occupants and coordinators only.")
                 shouldSignOut = true
                 return
@@ -95,7 +95,7 @@ class HomeViewModel: ObservableObject {
             }
             if profile.isCoordinator { await checkFormDue(occupantDocId: profile.occupantDocId) }
         } catch {
-            try? authRepository.signOut()
+            await authRepository.signOutAndClearFcm()
             state = .accessDenied(reason: error.localizedDescription)
             shouldSignOut = true
         }
@@ -149,7 +149,7 @@ class HomeViewModel: ObservableObject {
                 if !enabled {
                     self.isEnabledListener?.remove()
                     self.isEnabledListener = nil
-                    try? self.authRepository.signOut()
+                    await self.authRepository.signOutAndClearFcm()
                     self.shouldSignOut = true
                 }
             }
@@ -188,7 +188,11 @@ class HomeViewModel: ObservableObject {
         noticesListener = nil
         notificationsListener?.remove()
         notificationsListener = nil
-        try? authRepository.signOut()
+        // Run the full cleanup (clear fcm_token → revoke device token → auth
+        // sign-out) in a detached Task so it completes even after navigation
+        // tears this view model down.
+        let repo = authRepository
+        Task.detached { await repo.signOutAndClearFcm() }
     }
 
     private func startObservingNotifications(occupantId: String) {

@@ -36,6 +36,14 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
      *      — never the bare Home screen.
      */
     override fun onMessageReceived(message: RemoteMessage) {
+        // Defense-in-depth: never surface a push when no user is signed in.
+        // Sign-out clears `Users/{uid}.fcm_token` and revokes the local token
+        // server-side, but until that propagates a backend send for the
+        // previous user could still race a logout. Drop those here too.
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            Log.d(TAG, "onMessageReceived: dropping push — no signed-in user")
+            return
+        }
         val title = message.notification?.title ?: return
         val body  = message.notification?.body  ?: ""
         val type             = message.data["type"]            ?: ""

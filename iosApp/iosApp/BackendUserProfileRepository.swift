@@ -31,6 +31,16 @@ class BackendUserProfileRepository {
         print("[FCM-iOS] Firestore setData completed for uid=\(uid)")
     }
 
+    /// Removes the device's FCM token mapping from the user doc on sign-out
+    /// so the backend stops targeting this device. Must run BEFORE
+    /// `auth.signOut()` because Firestore rules require an authenticated user.
+    func clearFcmToken(uid: String) async throws {
+        print("[FCM-iOS] Firestore deleting fcm_token for uid=\(uid)")
+        try await db.collection("Users").document(uid)
+            .updateData(["fcm_token": FieldValue.delete()])
+        print("[FCM-iOS] Firestore fcm_token cleared for uid=\(uid)")
+    }
+
     func getProfile(uid: String) async throws -> OccupantProfile {
         let userDoc = try await db.collection("Users").document(uid).getDocument()
         guard userDoc.exists, let userData = userDoc.data() else {

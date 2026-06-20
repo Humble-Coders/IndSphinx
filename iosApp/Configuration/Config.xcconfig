@@ -1,6 +1,6 @@
 TEAM_ID=
 
-PRODUCT_NAME=IndSphinx
+PRODUCT_NAME=MyNest
 PRODUCT_BUNDLE_IDENTIFIER=com.humblesolutions.indsphinx.IndSphinx$(TEAM_ID)
 
 CURRENT_PROJECT_VERSION=1

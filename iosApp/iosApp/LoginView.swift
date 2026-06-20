@@ -56,10 +56,10 @@ struct LoginView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 64, height: 64)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Welcome to Indsphinx")
+                            Text("Welcome to My Nest")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
-                            Text("Housing Management System")
+                            Text("By Ind-Sphinx")
                                 .font(.system(size: 13))
                                 .foregroundColor(.gray)
                         }
@@ -74,13 +74,13 @@ struct LoginView: View {
 
                     // Form card
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("Employee ID / Email")
+                        Text("Email")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.2))
                         Spacer().frame(height: 8)
                         HStack(spacing: 10) {
                             Image(systemName: "envelope").foregroundColor(.gray).frame(width: 20)
-                            TextField("Enter your employee ID or email", text: $email)
+                            TextField("Enter your email", text: $email)
                                 .autocorrectionDisabled()
                                 .keyboardType(.emailAddress)
                                 .textInputAutocapitalization(.never)
@@ -160,9 +160,9 @@ struct LoginView: View {
                     Spacer().frame(height: 8)
 
                     VStack(spacing: 4) {
-                        Text("Secure login powered by Indsphinx")
+                        Text("Secure login powered by Ind-Sphinx")
                             .font(.system(size: 12)).foregroundColor(.gray)
-                        Text("© 2026 Indsphinx Accommodation System")
+                        Text("© 2026 My Nest By Ind-Sphinx")
                             .font(.system(size: 12)).foregroundColor(.gray)
                     }
 
@@ -207,7 +207,7 @@ struct LoginView: View {
             case .success:
                 passwordResetAlert = PasswordResetAlertContent(
                     title: "Check your email",
-                    message: "If an account exists for that address, you'll receive instructions to reset your password."
+                    message: "If an account exists with this email, a password reset link has been sent."
                 )
             case .error(let message):
                 passwordResetAlert = PasswordResetAlertContent(title: "Reset password", message: message)

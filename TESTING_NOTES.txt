@@ -1,0 +1,280 @@
+==========================================================================
+My Nest (by Ind-Sphinx) — Tester Notes for Today's Build
+Date: 2026-06-20
+Platforms: Android + iOS
+==========================================================================
+
+This document covers everything that changed in today's build. Please test
+each item on BOTH Android and iOS — every fix was applied to both apps.
+
+
+==========================================================================
+2. BUG FIX — App crashed for users with no flat assigned
+==========================================================================
+
+What was broken:
+  Users who had no flat assigned were stuck on a red error screen at the
+  top of Home that said: "Invalid document reference. Document references
+  must have an even number of segments, but flats has 1". They could not
+  use the app at all.
+
+What was fixed:
+  Such users can now access the entire app normally. The "amenity
+  re-confirmation" form only appears once a flat actually gets assigned.
+
+How to test:
+  1. Sign in as a user who currently has no flat assigned to them.
+  2. The user should reach Home cleanly (no red error).
+  3. Drawer items should work (Visitor Pass, Feedback, Documents,
+     Flat Vacant Request, etc.).
+  4. Once admin assigns a flat to this user, the amenity confirmation
+     flow (if applicable) should appear in due course.
+
+==========================================================================
+3. UI CHANGE — Monthly Flat Self-Check (Annexure-C) "Safety & Discipline"
+==========================================================================
+
+What changed:
+  Section 3 ("Safety & Discipline") now uses positive-question wording.
+  The OLD labels said "No X" with Yes = good. The NEW labels invert the
+  semantics: Yes = there IS an issue.
+
+  Old → New:
+    "No unauthorized guests"          → "Any Unauthorized guests"
+    "No damage to property"           → "Any Damage to Property"
+    "No complaints from neighbors"    → "Any Complaints from neighbours"
+    "Flat maintained in good condition" → "Flat is in Bad Condition ?"
+
+How to test:
+  1. As a coordinator, open the Monthly Flat Self-Check form from Home.
+  2. Scroll to section 3 "Safety & Discipline".
+  3. Verify the 4 row labels match the NEW wording above (exact text).
+  4. Verify each row still has Yes / No radio options.
+  5. Submitting should still require all 4 rows answered.
+
+Note for admin-panel testing:
+  Newly submitted forms now store these fields under the NEW key names.
+  Existing/historical forms keep the old keys. Admin panel should render
+  whichever keys exist on the document. Yes now means "issue exists" —
+  treat it as the alert / red state on dashboards.
+
+==========================================================================
+4. BUG FIX — Notification deep-link to Visitor Pass showed blank screen
+==========================================================================
+
+What was broken:
+  Tapping a Visitor Pass push notification would open the Visitor Pass
+  screen but show "No visitor passes yet" even when passes existed.
+  After this, creating a new pass would hang on the loading screen.
+  Only force-closing and reopening fixed it.
+
+What was fixed:
+  The screen now correctly subscribes once the user's profile is loaded.
+
+How to test:
+  1. Have a few existing visitor passes on the account.
+  2. From the admin side, trigger a Visitor Pass push (or use one of the
+     normal real notification triggers).
+  3. With the app fully closed, tap the push.
+  4. The Visitor Pass screen should open showing your existing passes.
+  5. Tap "Request Visitor Pass", fill the form, submit. The form should
+     complete and the new pass should appear at the top of the list
+     (NOT hang on the loading spinner).
+  6. Same flow with the app already running in the background.
+  7. Same flow with the app already in foreground.
+
+Bonus / related (same bug pattern was preemptively fixed):
+  - Feedback screen: same flow — open from drawer immediately after
+    app launch (before Home finishes loading). Should not get stuck.
+  - Flat Vacant Request screen: same — open immediately after launch.
+
+==========================================================================
+5. REBRANDING — "Indsphinx" → "My Nest"
+==========================================================================
+
+What changed:
+  The product is now branded as "My Nest". In places where there's
+  room (splash, login footer), the longer "My Nest By Ind-Sphinx" is
+  used.
+
+Places to verify the new branding:
+  - Home-screen icon label (under the app icon on the device):
+      Android: "My Nest"
+      iOS:     "My Nest"
+  - Splash screen on launch: "MY NEST" with subtitle "By Ind-Sphinx".
+  - Login screen card: "Welcome to My Nest" / "By Ind-Sphinx".
+  - Login screen footer:
+       "Secure login powered by Ind-Sphinx"
+       "© 2026 My Nest By Ind-Sphinx"
+  - Android Settings → Apps → My Nest → Notifications: channel listed
+    as "My Nest Notifications".
+
+What should NOT appear anywhere user-visible:
+  - "INDSPHINX", "Indsphinx", "Ind Sphinx"
+  - "Accommodation System", "Housing Management System"
+
+  Please tap-test every screen looking for any stray old-brand text.
+
+(The word "accommodation" still appears in legal/agreement text such as
+"company residential accommodation" — that's a generic noun describing
+the housing and is intentional, NOT a brand reference.)
+
+==========================================================================
+6. CHANGE — Forgot Password now uses the new branded email service
+==========================================================================
+
+What changed:
+  The "Forgot password?" flow now goes through our server-side function
+  that sends a branded email and applies an internal rate limit
+  (5 attempts per email per hour).
+
+How to test:
+  1. From Login, tap "Forgot password?".
+  2. With email field EMPTY: tap the reset link → an inline error
+     should show "Enter your email first."
+  3. Enter a VALID email of a real account, tap "Forgot password?"
+     - Loading state shown briefly.
+     - On success, a dialog appears with title "Check your email" and
+       body exactly: "If an account exists with this email, a password
+       reset link has been sent." Tap OK to dismiss.
+     - The actual reset email should arrive in that inbox with the
+       branded Ind-Sphinx template (NOT the default Firebase email).
+  4. Enter an email that DOES NOT have an account, then tap reset.
+     - You should STILL see the same generic success dialog. The app
+       must NOT reveal whether an account exists (anti-enumeration).
+  5. Throttle check: enter the same email 6+ times within an hour.
+     - On the 6th attempt (or whenever the server cap hits) the dialog
+       should change to "Reset password" with the server's throttle
+       message: "Maximum password reset attempts reached for this
+       email. Please try again later."
+  6. Invalid email format (e.g. "abc"): the dialog should show
+     "Reset password" with body "Enter a valid email address."
+  7. Disconnect from internet, then try reset. The dialog should show
+     "Reset password" with body "Something went wrong. Please try
+     again." (Same fallback for any unexpected server / network error.)
+
+==========================================================================
+7. BUG FIX — Notifications kept arriving after logout
+==========================================================================
+
+What was broken:
+  After signing out, the device kept receiving push notifications
+  targeted at the previous user. They would also see a different
+  user's notifications if a second account signed in on the same device.
+
+What was fixed:
+  Sign-out now properly:
+    (a) clears the device's notification token from the user's record,
+    (b) revokes the token on the device itself,
+    (c) signs out of the account.
+  Sign-in also now requires the new token to be registered before the
+  user reaches Home — so the next sign-in always re-registers correctly.
+
+How to test (push routing across logout/login):
+
+  Test A — basic logout silences pushes:
+    1. Sign in as User A. Confirm pushes work (admin sends a test push).
+    2. Sign out of User A from the drawer.
+    3. Have admin send another push to User A.
+    4. The device must NOT show any notification.
+
+  Test B — re-login restores pushes:
+    5. Sign back in as User A on the same device.
+    6. Admin sends a push to User A.
+    7. The device SHOULD show the notification (token re-registered).
+
+  Test C — switching accounts:
+    8. From signed-in User A, sign out.
+    9. Sign in as User B.
+    10. Admin sends push to User A. Device should NOT show it.
+    11. Admin sends push to User B. Device SHOULD show it.
+
+  Test D — admin-forced sign-out (account disabled):
+    12. While signed in as User C, ask admin to set User C as disabled.
+    13. The app should automatically sign User C out and show the
+        "Your account has been disabled..." screen.
+    14. Admin sends push to User C → device should NOT show it.
+
+  Test E — kill app + reopen:
+    15. Sign in as a user. Kill the app from the recent-apps tray.
+    16. Admin sends a push.
+    17. The notification should appear in the tray.
+    18. Tap it → app opens to the right screen (e.g., Visitor Pass /
+        Complaints / Notice / Flat Vacant Request as relevant to the
+        push type).
+
+==========================================================================
+8. BUG FIX — Could sign in without a notification token saved
+==========================================================================
+
+What was broken:
+  In rare network-glitch cases at sign-in time, the device's
+  notification token would fail to save silently, and the user would
+  reach Home but never receive any push notifications until they
+  logged out and back in.
+
+What was fixed:
+  Sign-in now fails cleanly if the notification token can't be saved.
+
+How to test:
+  1. Turn airplane mode ON.
+  2. Open the app and try to sign in with valid credentials.
+  3. Expected: sign-in fails with a friendly error (something about
+     could not register the device for notifications, please check
+     connection and try again). User stays on the Login screen.
+  4. Turn airplane mode OFF.
+  5. Try again with the same credentials. Sign-in should succeed.
+  6. Admin sends a push. The device should receive it.
+
+(This is hard to reproduce on a fast/stable connection — the airplane-
+mode trick is the most reliable way to force the failure path.)
+
+==========================================================================
+9. UI CHANGE — Login / Forgot Password only mention "email"
+==========================================================================
+
+What changed:
+  The login field and forgot-password empty-state error no longer
+  mention "Employee ID". Login is by email only.
+
+  Old → New:
+    Login field label "Employee ID / Email"           → "Email"
+    Login field placeholder "Enter your employee ID
+                              or email"               → "Enter your email"
+    Forgot-password (empty) error "Enter your
+                              employee ID or email
+                              first."                 → "Enter your email first."
+
+How to test:
+  1. Open Login. Verify the field label and placeholder match the
+     new wording exactly (above).
+  2. Without typing anything, tap "Forgot password?".
+     The error should read "Enter your email first."
+  3. Verify the profile screen still shows "Employee ID" as a row
+     under the user's profile details — that's the user's actual
+     employee ID and is unrelated to login. It is intentionally
+     unchanged.
+
+==========================================================================
+GENERAL REGRESSION CHECKLIST
+==========================================================================
+
+Please also smoke-test the following untouched areas after this build,
+to confirm nothing else regressed:
+
+  - Login (correct password) → Home loads, profile shown, name + flat
+    visible.
+  - Login (wrong password) → "Incorrect email or password".
+  - Submit a Complaint (with media attachment).
+  - Submit Feedback.
+  - Receive a Visitor Pass admin update via push, tap, see status.
+  - Open a notice with a question, answer it, submit.
+  - Coordinator Monthly Self-Check form: full happy path, including
+    the renamed Safety section (#3 above).
+  - Documents drawer → list loads.
+  - Pull-to-refresh and tab switches on Home work.
+  - Account stays signed in after closing and reopening the app.
+
+==========================================================================
+END
+==========================================================================

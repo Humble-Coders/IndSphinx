@@ -13,7 +13,7 @@
 /* Begin PBXFileReference section */
 		319E03C986A55A886AD582BE /* Pods-iosApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-iosApp.release.xcconfig"; path = "Target Support Files/Pods-iosApp/Pods-iosApp.release.xcconfig"; sourceTree = "<group>"; };
 		5F8B74132411B6485CD47B2F /* Pods_iosApp.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_iosApp.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		D3C2CBEFBCC955B65B0D4400 /* IndSphinx.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IndSphinx.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D3C2CBEFBCC955B65B0D4400 /* MyNest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyNest.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D99E17EF264BF4A2C7661A90 /* Pods-iosApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-iosApp.debug.xcconfig"; path = "Target Support Files/Pods-iosApp/Pods-iosApp.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -58,7 +58,7 @@
 		13ED93B7294360E293F030C9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				D3C2CBEFBCC955B65B0D4400 /* IndSphinx.app */,
+				D3C2CBEFBCC955B65B0D4400 /* MyNest.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -114,7 +114,7 @@
 			);
 			name = iosApp;
 			productName = iosApp;
-			productReference = D3C2CBEFBCC955B65B0D4400 /* IndSphinx.app */;
+			productReference = D3C2CBEFBCC955B65B0D4400 /* MyNest.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

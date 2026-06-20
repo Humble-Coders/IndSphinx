@@ -194,7 +194,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (profile.isCoordinator) checkFormDue(profile.occupantDocId)
             } catch (e: Exception) {
-                authRepository.signOut()
+                authRepository.signOutAndClearFcm()
                 _uiState.value = HomeUiState.AccessDenied(e.message ?: "Access denied.")
             }
         }
@@ -214,7 +214,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             userProfileRepo.observeIsEnabled(uid).collect { enabled ->
                 if (!enabled) {
                     enabledListenerJob?.cancel()
-                    authRepository.signOut()
+                    authRepository.signOutAndClearFcm()
                     _uiState.value = HomeUiState.AccessDenied("Your account has been disabled. Please contact the admin.")
                 }
             }
@@ -277,7 +277,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         enabledListenerJob = null
         notificationsJob?.cancel()
         notificationsJob = null
-        authRepository.signOut()
+        // Run the full cleanup (clear fcm_token → revoke device token → auth
+        // sign-out) inside NonCancellable so it survives the VM being cleared
+        // by the navigation that the caller triggers right after this returns.
+        viewModelScope.launch {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                authRepository.signOutAndClearFcm()
+            }
+        }
     }
 
     private fun greeting(): String {

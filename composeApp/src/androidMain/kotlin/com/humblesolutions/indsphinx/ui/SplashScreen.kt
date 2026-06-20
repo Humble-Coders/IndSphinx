@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessaging
 import com.humblesolutions.indsphinx.SplashDestination
+import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
 import com.humblesolutions.indsphinx.repository.BackendUserProfileRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
@@ -46,7 +47,9 @@ fun SplashScreen(onSplashComplete: (SplashDestination) -> Unit) {
             val userProfileRepo = BackendUserProfileRepository()
             val isEnabled = try { userProfileRepo.isUserEnabled(currentUser.uid) } catch (e: Exception) { true }
             if (!isEnabled) {
-                FirebaseAuth.getInstance().signOut()
+                // Disabled-account cold start: full cleanup so the device
+                // stops receiving pushes targeting this user.
+                AndroidAuthRepository().signOutAndClearFcm()
                 onSplashComplete(SplashDestination.NOT_LOGGED_IN)
                 return@LaunchedEffect
             }
@@ -88,7 +91,7 @@ fun SplashScreen(onSplashComplete: (SplashDestination) -> Unit) {
             ) {
                 Image(
                     painter = painterResource(id = com.humblesolutions.indsphinx.R.drawable.app_logo),
-                    contentDescription = "Indsphinx Logo",
+                    contentDescription = "My Nest Logo",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .size(120.dp)
@@ -99,7 +102,7 @@ fun SplashScreen(onSplashComplete: (SplashDestination) -> Unit) {
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "INDSPHINX",
+                text = "MY NEST",
                 color = Color.White,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
@@ -109,7 +112,7 @@ fun SplashScreen(onSplashComplete: (SplashDestination) -> Unit) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Accommodation System",
+                text = "By Ind-Sphinx",
                 color = Color.White.copy(alpha = 0.8f),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Normal

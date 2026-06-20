@@ -108,19 +108,19 @@ fun LoginScreen(
                 ) {
                     Image(
                         painter = painterResource(id = com.humblesolutions.indsphinx.R.drawable.app_logo),
-                        contentDescription = "Indsphinx Logo",
+                        contentDescription = "My Nest Logo",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.size(96.dp)
                     )
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = "Welcome to Indsphinx",
+                        text = "Welcome to My Nest",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1A1A2E)
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(text = "Housing Management System", fontSize = 14.sp, color = Color(0xFF888888))
+                    Text(text = "By Ind-Sphinx", fontSize = 14.sp, color = Color(0xFF888888))
                 }
             }
 
@@ -138,7 +138,7 @@ fun LoginScreen(
                         .fillMaxWidth()
                         .padding(24.dp)
                 ) {
-                    Text("Employee ID / Email", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF333333))
+                    Text("Email", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF333333))
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = email,
@@ -147,7 +147,7 @@ fun LoginScreen(
                             if (uiState is AuthUiState.Error) viewModel.resetState()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Enter your employee ID or email", color = Color(0xFFAAAAAA)) },
+                        placeholder = { Text("Enter your email", color = Color(0xFFAAAAAA)) },
                         leadingIcon = { Icon(Icons.Outlined.Email, null, tint = Color(0xFFAAAAAA)) },
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -251,9 +251,9 @@ fun LoginScreen(
             Spacer(Modifier.height(24.dp))
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Secure login powered by Indsphinx", color = Color(0xFF888888), fontSize = 12.sp)
+                Text("Secure login powered by Ind-Sphinx", color = Color(0xFF888888), fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
-                Text("© 2026 Indsphinx Accommodation System", color = Color(0xFF888888), fontSize = 12.sp)
+                Text("© 2026 My Nest By Ind-Sphinx", color = Color(0xFF888888), fontSize = 12.sp)
             }
 
             Spacer(Modifier.height(48.dp))
@@ -271,7 +271,7 @@ fun LoginScreen(
                     title = { Text("Check your email") },
                     text = {
                         Text(
-                            "If an account exists for that address, you'll receive instructions to reset your password."
+                            "If an account exists with this email, a password reset link has been sent."
                         )
                     }
                 )

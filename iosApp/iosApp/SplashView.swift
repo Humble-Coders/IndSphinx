@@ -33,14 +33,14 @@ struct SplashView: View {
 
                 Spacer().frame(height: 32)
 
-                Text("INDSPHINX")
+                Text("MY NEST")
                     .font(.system(size: 28, weight: .bold))
                     .foregroundColor(.white)
                     .kerning(6)
 
                 Spacer().frame(height: 8)
 
-                Text("Accommodation System")
+                Text("By Ind-Sphinx")
                     .font(.system(size: 16, weight: .regular))
                     .foregroundColor(.white.opacity(0.8))
 
@@ -72,7 +72,9 @@ struct SplashView: View {
             let userProfileRepo = BackendUserProfileRepository()
             let isEnabled = (try? await userProfileRepo.isUserEnabled(uid: currentUser.uid)) ?? true
             if !isEnabled {
-                try? Auth.auth().signOut()
+                // Disabled-account cold start: full cleanup so the device
+                // stops receiving pushes targeting this user.
+                await IOSAuthRepository().signOutAndClearFcm()
                 onSplashComplete(.login)
                 return
             }

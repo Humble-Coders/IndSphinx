@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.messaging.FirebaseMessaging
 import com.humblesolutions.indsphinx.model.User
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
+import com.humblesolutions.indsphinx.repository.CallablePasswordResetException
 import com.humblesolutions.indsphinx.repository.BackendUserProfileRepository
 import com.humblesolutions.indsphinx.usecase.SignInUseCase
 import com.humblesolutions.indsphinx.usecase.ValidateOccupantUseCase
@@ -48,14 +49,36 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 val user = signInUseCase.execute(email, password)
                 try {
                     val profile = validateOccupantUseCase.execute(user.uid)
+                    // Sign-in is only complete once the device's FCM token is
+                    // persisted on the user doc — otherwise the user lands in
+                    // Home with no way to receive pushes. If the fetch or
+                    // write fails (network, Play Services hiccup, Firestore
+                    // outage), roll back the whole session so they can retry.
+                    //
+                    // No Firestore transaction is needed here: this is a
+                    // single-document write, which Firestore already commits
+                    // atomically. The "atomic" property we care about
+                    // (sign-in succeeds ⇒ fcm_token persisted) is enforced
+                    // by gating the success state on a successful write +
+                    // rolling back via signOutAndClearFcm on failure.
                     try {
                         val token = FirebaseMessaging.getInstance().token.await()
                         userProfileRepository.updateFcmToken(user.uid, token)
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) {
+                        authRepository.signOutAndClearFcm()
+                        _uiState.value = AuthUiState.Error(
+                            "Could not register this device for notifications. Please check your connection and try again."
+                        )
+                        return@launch
+                    }
                     _uiState.value = AuthUiState.Success(user, needsAgreement = !profile.hasAcceptedAgreement)
                 } catch (e: Exception) {
-                    // Auth succeeded but profile check failed — sign out immediately
-                    authRepository.signOut()
+                    // Auth succeeded but profile check failed. No FCM token was
+                    // written yet (token write happens after this block), so
+                    // the cleanup's Firestore field-delete is a safe no-op;
+                    // we still need it to revoke the local FCM token and
+                    // release the auth session.
+                    authRepository.signOutAndClearFcm()
                     _uiState.value = AuthUiState.Error(e.message ?: "Access denied.")
                 }
             } catch (e: Exception) {
@@ -73,7 +96,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun sendPasswordReset(email: String) {
         val trimmed = email.trim()
         if (trimmed.isEmpty()) {
-            _passwordResetState.value = PasswordResetUiState.Error("Enter your employee ID or email first.")
+            _passwordResetState.value = PasswordResetUiState.Error("Enter your email first.")
             return
         }
         viewModelScope.launch {
@@ -81,8 +104,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 authRepository.sendPasswordResetEmail(trimmed)
                 _passwordResetState.value = PasswordResetUiState.Success
-            } catch (e: Exception) {
-                _passwordResetState.value = PasswordResetUiState.Error(friendlyPasswordResetMessage(e))
+            } catch (e: CallablePasswordResetException) {
+                _passwordResetState.value = PasswordResetUiState.Error(mapPasswordResetError(e))
+            } catch (_: Exception) {
+                _passwordResetState.value = PasswordResetUiState.Error("Something went wrong. Please try again.")
             }
         }
     }
@@ -91,13 +116,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         _passwordResetState.value = PasswordResetUiState.Idle
     }
 
-    private fun friendlyPasswordResetMessage(e: Exception): String {
-        val msg = e.message ?: return "Could not send reset email. Try again later."
-        return when {
-            "badly formatted" in msg || "invalid email" in msg.lowercase() -> "Invalid email format."
-            "network" in msg.lowercase() || "Unable to resolve host" in msg -> "Network error. Check your connection and try again."
-            else -> "Could not send reset email. Try again later."
+    private fun mapPasswordResetError(e: CallablePasswordResetException): String = when (e.code) {
+        "resource-exhausted" -> e.serverMessage.ifBlank {
+            "Maximum password reset attempts reached for this email. Please try again later."
         }
+        "invalid-argument" -> "Enter a valid email address."
+        else -> "Something went wrong. Please try again."
     }
 
     private fun friendlyMessage(e: Exception): String {

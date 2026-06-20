@@ -1,5 +1,6 @@
 package com.humblesolutions.indsphinx.repository
 
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.humblesolutions.indsphinx.model.OccupantProfile
 import kotlinx.coroutines.channels.awaitClose
@@ -34,6 +35,17 @@ class BackendUserProfileRepository : UserProfileRepository {
 
     suspend fun updateFcmToken(uid: String, token: String) {
         db.collection("Users").document(uid).update("fcm_token", token).await()
+    }
+
+    /**
+     * Removes the device's FCM token mapping from the user doc on sign-out so
+     * the backend stops targeting this device. Must be called BEFORE
+     * `auth.signOut()` because Firestore rules require an authenticated user.
+     */
+    suspend fun clearFcmToken(uid: String) {
+        db.collection("Users").document(uid)
+            .update("fcm_token", FieldValue.delete())
+            .await()
     }
 
     override suspend fun getProfile(uid: String): OccupantProfile {
