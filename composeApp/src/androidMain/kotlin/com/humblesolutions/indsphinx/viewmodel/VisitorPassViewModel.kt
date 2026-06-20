@@ -31,9 +31,18 @@ class VisitorPassViewModel(application: Application) : AndroidViewModel(applicat
     val uiState: StateFlow<VisitorPassUiState> = _uiState.asStateFlow()
 
     private var listenerJob: Job? = null
+    private var listeningOccupantId: String = ""
 
     fun start(occupantId: String) {
-        if (listenerJob?.isActive == true) return
+        // Deep-link entry can call start("") before HomeViewModel has loaded
+        // the occupant profile. Skip blank ids — once the real id arrives the
+        // LaunchedEffect re-fires and we'll subscribe properly. If we're
+        // already listening for the same id, do nothing.
+        if (occupantId.isBlank()) return
+        if (listenerJob?.isActive == true && listeningOccupantId == occupantId) return
+        listenerJob?.cancel()
+        listeningOccupantId = occupantId
+        _uiState.value = VisitorPassUiState.Loading
         listenerJob = viewModelScope.launch {
             try {
                 observeUseCase.execute(occupantId).collect { passes ->

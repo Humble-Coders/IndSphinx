@@ -23,8 +23,8 @@ val REPAIR_ITEMS = listOf(
     "Kitchen sink & exhaust", "Doors / Windows / Locks", "Furniture (bed, almirah)"
 )
 val SAFETY_ITEMS = listOf(
-    "No unauthorized guests", "No damage to property",
-    "No complaints from neighbors", "Flat maintained in good condition"
+    "Any Unauthorized guests", "Any Damage to Property",
+    "Any Complaints from neighbours", "Flat is in Bad Condition ?"
 )
 val BILL_ITEMS = listOf("Electricity", "Water")
 

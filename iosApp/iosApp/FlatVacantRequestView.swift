@@ -82,6 +82,12 @@ struct FlatVacantRequestView: View {
         }
         .background(backgroundGray)
         .onAppear { viewModel.start(occupantId: occupantId) }
+        // Deep-link entry can mount this view before HomeViewModel has loaded
+        // the occupant profile, so occupantId is "" on first appear. When the
+        // real id arrives later, re-subscribe with it.
+        .onChange(of: occupantId) { newId in
+            viewModel.start(occupantId: newId)
+        }
     }
 }
 

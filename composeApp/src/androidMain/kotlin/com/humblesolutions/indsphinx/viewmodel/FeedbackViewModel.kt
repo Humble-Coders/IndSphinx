@@ -31,9 +31,18 @@ class FeedbackViewModel(application: Application) : AndroidViewModel(application
     val uiState: StateFlow<FeedbackUiState> = _uiState.asStateFlow()
 
     private var listenerJob: Job? = null
+    private var listeningOccupantId: String = ""
 
     fun start(occupantId: String) {
-        if (listenerJob?.isActive == true) return
+        // The drawer can mount this screen before HomeViewModel has loaded
+        // the occupant profile (occupantId = ""). Skip blank ids — once the
+        // real id arrives the LaunchedEffect re-fires and we subscribe then.
+        // If we're already listening for the same id, do nothing.
+        if (occupantId.isBlank()) return
+        if (listenerJob?.isActive == true && listeningOccupantId == occupantId) return
+        listenerJob?.cancel()
+        listeningOccupantId = occupantId
+        _uiState.value = FeedbackUiState.Loading
         listenerJob = viewModelScope.launch {
             try {
                 observeUseCase.execute(occupantId).collect { feedbacks ->

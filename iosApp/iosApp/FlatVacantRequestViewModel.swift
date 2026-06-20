@@ -5,6 +5,7 @@ import FirebaseFirestore
 class FlatVacantRequestViewModel: ObservableObject {
     private let repo = BackendFlatVacantRequestRepository()
     private var listenerRegistration: ListenerRegistration?
+    private var listeningOccupantId: String = ""
 
     enum State {
         case loading
@@ -18,11 +19,15 @@ class FlatVacantRequestViewModel: ObservableObject {
     @Published var state: State = .loading
 
     func start(occupantId: String) {
-        guard !occupantId.isEmpty else {
-            state = .error("Occupant info missing. Please sign in again.", [])
-            return
-        }
-        guard listenerRegistration == nil else { return }
+        // Deep-link entry can call start("") before HomeViewModel has loaded
+        // the occupant profile. Skip blank ids — once the real id arrives the
+        // view will call start again and we'll subscribe properly. If we're
+        // already listening for the same id, do nothing.
+        guard !occupantId.isEmpty else { return }
+        if listenerRegistration != nil && listeningOccupantId == occupantId { return }
+        listenerRegistration?.remove()
+        listeningOccupantId = occupantId
+        state = .loading
         listenerRegistration = repo.observeByOccupant(occupantId: occupantId) { [weak self] items in
             guard let self else { return }
             Task { @MainActor in

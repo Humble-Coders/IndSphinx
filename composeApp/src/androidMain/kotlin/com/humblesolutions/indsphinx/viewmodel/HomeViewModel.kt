@@ -109,6 +109,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadRevisedFormAmenities(flatId: String) {
+        if (flatId.isBlank()) {
+            // Defensive: callers should already guard, but never let an empty
+            // flatId hit Firestore — it produces an "even segments" error.
+            _revisedFormState.value = RevisedFormState.Hidden
+            return
+        }
         viewModelScope.launch {
             _revisedFormState.value = RevisedFormState.Loading
             try {
@@ -180,7 +186,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 startObservingEnabled(uid)
                 startObservingOccupant(profile.occupantDocId)
                 startObservingNotifications(uid)
-                if (!profile.hasAcceptedRevisedForm) loadRevisedFormAmenities(profile.flatId)
+                // Revised-amenities form only makes sense once a flat is
+                // assigned. Without a flat, there's nothing to confirm and the
+                // Firestore read would blow up on an empty document path.
+                if (!profile.hasAcceptedRevisedForm && profile.flatId.isNotBlank()) {
+                    loadRevisedFormAmenities(profile.flatId)
+                }
                 if (profile.isCoordinator) checkFormDue(profile.occupantDocId)
             } catch (e: Exception) {
                 authRepository.signOut()
@@ -225,7 +236,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 val hasAccepted = if (data.containsKey("has_accepted_revised_form"))
                     data["has_accepted_revised_form"] as? Boolean ?: true else true
-                if (!hasAccepted && _revisedFormState.value is RevisedFormState.Hidden) {
+                if (!hasAccepted && updatedFlatId.isNotBlank() && _revisedFormState.value is RevisedFormState.Hidden) {
                     loadRevisedFormAmenities(updatedFlatId)
                 }
             }

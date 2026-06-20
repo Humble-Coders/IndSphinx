@@ -87,7 +87,12 @@ class HomeViewModel: ObservableObject {
             startObservingOccupant(occupantDocId: profile.occupantDocId)
             startObservingNotices()
             startObservingNotifications(occupantId: user.uid)
-            if !profile.hasAcceptedRevisedForm { await loadRevisedFormAmenities(flatId: profile.flatId) }
+            // Revised-amenities form only makes sense once a flat is
+            // assigned. Without a flat, there's nothing to confirm and the
+            // Firestore read would blow up on an empty document path.
+            if !profile.hasAcceptedRevisedForm && !profile.flatId.isEmpty {
+                await loadRevisedFormAmenities(flatId: profile.flatId)
+            }
             if profile.isCoordinator { await checkFormDue(occupantDocId: profile.occupantDocId) }
         } catch {
             try? authRepository.signOut()
@@ -129,7 +134,7 @@ class HomeViewModel: ObservableObject {
                 let hasAccepted = data.keys.contains("has_accepted_revised_form")
                     ? (data["has_accepted_revised_form"] as? Bool ?? true)
                     : true
-                if !hasAccepted, case .hidden = self.revisedFormState {
+                if !hasAccepted, !updatedFlatId.isEmpty, case .hidden = self.revisedFormState {
                     await self.loadRevisedFormAmenities(flatId: updatedFlatId)
                 }
             }
@@ -209,6 +214,12 @@ class HomeViewModel: ObservableObject {
     }
 
     private func loadRevisedFormAmenities(flatId: String) async {
+        if flatId.isEmpty {
+            // Defensive: callers should already guard, but never let an empty
+            // flatId hit Firestore — it produces an "even segments" error.
+            revisedFormState = .hidden
+            return
+        }
         revisedFormState = .loading
         do {
             let (common, room) = try await formRepository.getFlatAmenities(flatId: flatId)

@@ -255,6 +255,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "My Nest ";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Used to capture photos and videos when submitting a complaint.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to record audio when capturing video for a complaint.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Used to attach photos and videos from your library to a complaint.";
@@ -268,7 +269,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.humblesolutions.indsphinx.IndSphinx;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -296,6 +297,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "My Nest ";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Used to capture photos and videos when submitting a complaint.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to record audio when capturing video for a complaint.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Used to attach photos and videos from your library to a complaint.";
@@ -309,7 +311,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.humblesolutions.indsphinx.IndSphinx;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

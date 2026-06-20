@@ -3,8 +3,8 @@ import Foundation
 let cleanlinessItems = ["Toilet & Bathroom", "Kitchen", "Living Room", "Bedrooms", "Dustbin / Garbage"]
 let repairItems = ["Electrical (lights, fan, switches)", "Plumbing (tap, flush, leakage)",
                    "Kitchen sink & exhaust", "Doors / Windows / Locks", "Furniture (bed, almirah)"]
-let safetyItems = ["No unauthorized guests", "No damage to property",
-                   "No complaints from neighbors", "Flat maintained in good condition"]
+let safetyItems = ["Any Unauthorized guests", "Any Damage to Property",
+                   "Any Complaints from neighbours", "Flat is in Bad Condition ?"]
 let billItems = ["Electricity", "Water"]
 
 @MainActor

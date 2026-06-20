@@ -5,6 +5,7 @@ import FirebaseFirestore
 class FeedbackViewModel: ObservableObject {
     private let repo = BackendFeedbackRepository()
     private var listenerRegistration: ListenerRegistration?
+    private var listeningOccupantId: String = ""
 
     enum State {
         case loading
@@ -18,7 +19,15 @@ class FeedbackViewModel: ObservableObject {
     @Published var state: State = .loading
 
     func start(occupantId: String) {
-        guard listenerRegistration == nil else { return }
+        // The drawer can mount this view before HomeViewModel has loaded the
+        // occupant profile (occupantId = ""). Skip blank ids — once the real
+        // id arrives the view will call start again and we subscribe then.
+        // If we're already listening for the same id, do nothing.
+        guard !occupantId.isEmpty else { return }
+        if listenerRegistration != nil && listeningOccupantId == occupantId { return }
+        listenerRegistration?.remove()
+        listeningOccupantId = occupantId
+        state = .loading
         listenerRegistration = repo.observeByOccupant(occupantId: occupantId) { [weak self] feedbacks in
             guard let self else { return }
             Task { @MainActor in
