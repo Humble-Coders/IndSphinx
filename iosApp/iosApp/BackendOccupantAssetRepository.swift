@@ -59,8 +59,11 @@ class BackendOccupantAssetRepository {
     /// `firestore.indexes.json`, so a composite index could not be deployed, and
     /// the Firestore rule grants an occupant read access by matching exactly
     /// this field. Ordering happens below, matching the shared use case.
+    /// `onError` is declared before `onChange` so a call site using a single
+    /// trailing closure still binds it to `onChange`.
     func observeByAuthUid(
         authUid: String,
+        onError: @escaping (Error) -> Void = { _ in },
         onChange: @escaping (OccupantAssetsSnapshot) -> Void
     ) -> ListenerRegistration? {
         guard !authUid.isEmpty else {
@@ -70,11 +73,16 @@ class BackendOccupantAssetRepository {
 
         return db.collection("OccupantAssets")
             .whereField("occupantAuthUid", isEqualTo: authUid)
-            .addSnapshotListener { snapshot, _ in
-                guard let snapshot = snapshot else {
-                    onChange(OccupantAssetsSnapshot())
+            .addSnapshotListener { snapshot, error in
+                // Firestore has already torn the listener down by the time it
+                // reports an error, so report it rather than emitting an empty
+                // snapshot: "no assets" and "could not load" are different
+                // things and must not look identical to the occupant.
+                if let error {
+                    onError(error)
                     return
                 }
+                guard let snapshot = snapshot else { return }
                 let assets: [OccupantAsset] = snapshot.documents.compactMap { doc in
                     let data = doc.data()
                     guard let number = data["assetNumber"] as? String else { return nil }

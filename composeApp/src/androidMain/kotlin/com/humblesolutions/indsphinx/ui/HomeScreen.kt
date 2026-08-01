@@ -352,6 +352,9 @@ fun HomeScreen(
                 onOpenVacantRequest = {
                     overlay = HomeOverlay.FlatVacant
                 },
+                onOpenAssets = {
+                    overlay = HomeOverlay.Assets
+                },
                 onBack = { overlay = HomeOverlay.None }
             )
             is HomeOverlay.NoticeQuestion -> NoticeQuestionScreen(
@@ -1568,6 +1571,7 @@ private fun NotificationsScreen(
     onOpenComplaint:     () -> Unit,
     onOpenVisitorPass:   () -> Unit,
     onOpenVacantRequest: () -> Unit,
+    onOpenAssets:        () -> Unit,
     onBack: () -> Unit
 ) {
     val dateFormatter = remember { java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault()) }
@@ -1628,7 +1632,11 @@ private fun NotificationsScreen(
                     val isComplaint     = source.startsWith("complaint_")
                     val isVisitorPass   = source.startsWith("visitor_pass_")
                     val isVacantRequest = source.startsWith("vacant_request_")
-                    val isActionable    = isQuestion || isComplaint || isVisitorPass || isVacantRequest
+                    // Covers asset_assigned and asset_returned (the close trigger
+                    // uses the same prefix for damaged and missing).
+                    val isAsset         = source.startsWith("asset_")
+                    val isActionable    = isQuestion || isComplaint || isVisitorPass ||
+                                          isVacantRequest || isAsset
 
                     NotificationItem(
                         notification = notification,
@@ -1641,6 +1649,7 @@ private fun NotificationsScreen(
                                 isComplaint     -> onOpenComplaint()
                                 isVisitorPass   -> onOpenVisitorPass()
                                 isVacantRequest -> onOpenVacantRequest()
+                                isAsset         -> onOpenAssets()
                             }
                         },
                     )

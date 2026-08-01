@@ -24,12 +24,22 @@ class AssetsViewModel: ObservableObject {
         listenerRegistration?.remove()
         listeningUid = authUid
         state = .loading
-        listenerRegistration = repo.observeByAuthUid(authUid: authUid) { [weak self] snapshot in
-            guard let self else { return }
-            Task { @MainActor in
-                self.state = .loaded(snapshot)
+        listenerRegistration = repo.observeByAuthUid(
+            authUid: authUid,
+            onError: { [weak self] error in
+                guard let self else { return }
+                print("[AssetsViewModel] assets observe failed: \(error.localizedDescription)")
+                Task { @MainActor in
+                    self.state = .error("Could not load your assets. Please try again.")
+                }
+            },
+            onChange: { [weak self] snapshot in
+                guard let self else { return }
+                Task { @MainActor in
+                    self.state = .loaded(snapshot)
+                }
             }
-        }
+        )
     }
 
     func stop() {

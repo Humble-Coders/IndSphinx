@@ -116,6 +116,10 @@ struct HomeView: View {
                             showNotifications = false
                             showFlatVacant = true
                         },
+                        onOpenAssets: {
+                            showNotifications = false
+                            showAssets = true
+                        },
                         onBack: { showNotifications = false }
                     )
                     .toolbar(.hidden, for: .navigationBar)
@@ -1262,6 +1266,7 @@ struct NotificationsView: View {
     let onOpenComplaint:     () -> Void
     let onOpenVisitorPass:   () -> Void
     let onOpenVacantRequest: () -> Void
+    let onOpenAssets:        () -> Void
     let onBack: () -> Void
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
@@ -1315,7 +1320,11 @@ struct NotificationsView: View {
                             let isComplaint     = source.hasPrefix("complaint_")
                             let isVisitorPass   = source.hasPrefix("visitor_pass_")
                             let isVacantRequest = source.hasPrefix("vacant_request_")
-                            let isActionable    = isQuestion || isComplaint || isVisitorPass || isVacantRequest
+                            // Covers asset_assigned and asset_returned (the close
+                            // trigger uses the same prefix for damaged and missing).
+                            let isAsset         = source.hasPrefix("asset_")
+                            let isActionable    = isQuestion || isComplaint || isVisitorPass
+                                                  || isVacantRequest || isAsset
 
                             NotificationItemView(
                                 notification: notification,
@@ -1334,6 +1343,8 @@ struct NotificationsView: View {
                                         onOpenVisitorPass()
                                     } else if isVacantRequest {
                                         onOpenVacantRequest()
+                                    } else if isAsset {
+                                        onOpenAssets()
                                     }
                                 }
                             )

@@ -28,10 +28,15 @@ class BackendOccupantAssetRepository : OccupantAssetRepository {
         val registration = db.collection("OccupantAssets")
             .whereEqualTo("occupantAuthUid", authUid)
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) {
-                    trySend(emptyList())
+                // Firestore has already torn the listener down by the time it
+                // reports an error, so fail the flow instead of emitting an
+                // empty list: "no assets" and "could not load" are different
+                // things and must not look identical to the occupant.
+                if (error != null) {
+                    close(error)
                     return@addSnapshotListener
                 }
+                if (snapshot == null) return@addSnapshotListener
                 val assets = snapshot.documents.mapNotNull { doc ->
                     val number = doc.getString("assetNumber") ?: return@mapNotNull null
                     OccupantAsset(

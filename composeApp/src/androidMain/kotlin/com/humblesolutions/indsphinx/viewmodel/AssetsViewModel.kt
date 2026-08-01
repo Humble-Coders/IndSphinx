@@ -1,11 +1,13 @@
 package com.humblesolutions.indsphinx.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.humblesolutions.indsphinx.repository.BackendOccupantAssetRepository
 import com.humblesolutions.indsphinx.usecase.ObserveOccupantAssetsUseCase
 import com.humblesolutions.indsphinx.usecase.OccupantAssetsSnapshot
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,10 +46,29 @@ class AssetsViewModel(application: Application) : AndroidViewModel(application) 
                 observeUseCase.execute(authUid).collect { snapshot ->
                     _uiState.value = AssetsUiState.Loaded(snapshot)
                 }
+            } catch (e: CancellationException) {
+                // Screen closed or the uid changed: not a failure.
+                throw e
             } catch (e: Exception) {
-                _uiState.value = AssetsUiState.Error(e.message ?: "Could not load your assets.")
+                Log.e("AssetsViewModel", "assets observe failed", e)
+                _uiState.value = AssetsUiState.Error("Could not load your assets. Please try again.")
             }
         }
+    }
+
+    /**
+     * Drops the Firestore listener when the screen leaves composition.
+     *
+     * This ViewModel is Activity-scoped, so without this the listener would
+     * outlive the closed screen and run alongside HomeViewModel's listener on
+     * the identical query for the rest of the session. Matches iOS, where the
+     * @StateObject is torn down when the cover is dismissed.
+     */
+    fun stop() {
+        listenerJob?.cancel()
+        listenerJob = null
+        listeningUid = ""
+        _uiState.value = AssetsUiState.Loading
     }
 
     override fun onCleared() {
