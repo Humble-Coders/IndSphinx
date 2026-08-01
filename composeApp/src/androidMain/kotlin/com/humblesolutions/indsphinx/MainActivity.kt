@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
                 IndSphinxMessagingService.DEEP_LINK_COMPLAINT          -> PendingDeepLink.Complaint
                 IndSphinxMessagingService.DEEP_LINK_VISITOR_PASS       -> PendingDeepLink.VisitorPass
                 IndSphinxMessagingService.DEEP_LINK_VACANT_REQUEST     -> PendingDeepLink.FlatVacantRequest
+                IndSphinxMessagingService.DEEP_LINK_ASSET              -> PendingDeepLink.Assets
                 IndSphinxMessagingService.DEEP_LINK_OPEN_NOTIFICATIONS -> PendingDeepLink.OpenNotifications
                 else -> null
             }
@@ -105,6 +106,7 @@ class MainActivity : ComponentActivity() {
             fcmType == "COMPLAINT"      -> PendingDeepLink.Complaint
             fcmType == "VISITOR_PASS"   -> PendingDeepLink.VisitorPass
             fcmType == "VACANT_REQUEST" -> PendingDeepLink.FlatVacantRequest
+            fcmType == "ASSET"          -> PendingDeepLink.Assets
             // TARGETED_NOTIFICATION and any unknown-but-non-empty type
             // → open the in-app notifications list.
             else -> PendingDeepLink.OpenNotifications

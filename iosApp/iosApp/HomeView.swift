@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var showDocuments = false
     @State private var showCoordinatorForm = false
     @State private var showFlatVacant = false
+    @State private var showAssets = false
     @State private var pendingComplaintAction: ComplaintStartAction? = nil
     @State private var pendingNotice: Notice? = nil
     @State private var showLogoutConfirmation = false
@@ -82,6 +83,11 @@ struct HomeView: View {
                                     pendingComplaintAction = ComplaintStartAction(kind: .openComplaint(complaint: complaint, occupantId: ready?.occupantDocId ?? ""))
                                     selectedTab = 1
                                 }
+                            )
+                            MyAssetsSection(
+                                assets: viewModel.currentAssets,
+                                navyBlue: navyBlue,
+                                onViewAll: { showAssets = true }
                             )
                         }
                         .padding(.horizontal, 16)
@@ -195,6 +201,10 @@ struct HomeView: View {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
                     showDocuments = true
                 },
+                onNavigateToAssets: {
+                    withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
+                    showAssets = true
+                },
                 isCoordinator: ready?.isCoordinator ?? false,
                 onNavigateToCoordinatorForm: {
                     withAnimation(.easeInOut(duration: 0.28)) { isDrawerOpen = false }
@@ -251,6 +261,12 @@ struct HomeView: View {
             showFlatVacant = true
             navState.pendingOpenVacantRequest = false
         }
+        .onChange(of: navState.pendingOpenAssets) { open in
+            guard open else { return }
+            showNotifications = false
+            showAssets = true
+            navState.pendingOpenAssets = false
+        }
         .onChange(of: ready?.occupantDocId) { docId in
             complaintsListener?.remove()
             complaintsListener = nil
@@ -287,6 +303,10 @@ struct HomeView: View {
             if navState.pendingOpenVacantRequest {
                 showFlatVacant = true
                 navState.pendingOpenVacantRequest = false
+            }
+            if navState.pendingOpenAssets {
+                showAssets = true
+                navState.pendingOpenAssets = false
             }
 
             guard let docId = ready?.occupantDocId, !docId.isEmpty else { return }
@@ -333,6 +353,12 @@ struct HomeView: View {
                 occupantId: ready?.occupantDocId ?? "",
                 occupantName: ready?.name ?? "",
                 onBack: { showFeedback = false }
+            )
+        }
+        .fullScreenCover(isPresented: $showAssets) {
+            AssetsView(
+                authUid: viewModel.authUid,
+                onBack: { showAssets = false }
             )
         }
         .fullScreenCover(isPresented: $showDocuments) {
@@ -513,6 +539,7 @@ private struct DrawerContentView: View {
     let onNavigateToFeedback: () -> Void
     let onNavigateToNoticeboard: () -> Void
     let onNavigateToDocuments: () -> Void
+    let onNavigateToAssets: () -> Void
     let isCoordinator: Bool
     let onNavigateToCoordinatorForm: () -> Void
     let onNavigateToFlatVacant: () -> Void
@@ -546,6 +573,7 @@ private struct DrawerContentView: View {
                 DrawerMenuItemView(systemIcon: "bell", label: "Notice Board", action: onNavigateToNoticeboard)
                 DrawerMenuItemView(systemIcon: "bubble.left", label: "Feedback", action: onNavigateToFeedback)
                 DrawerMenuItemView(systemIcon: "folder", label: "Documents", action: onNavigateToDocuments)
+                DrawerMenuItemView(systemIcon: "shippingbox", label: "My Assets", action: onNavigateToAssets)
                 DrawerMenuItemView(systemIcon: "figure.walk.departure", label: "Flat Vacant Request", action: onNavigateToFlatVacant)
                 if isCoordinator {
                     DrawerMenuItemView(systemIcon: "star", label: "Monthly Form", action: onNavigateToCoordinatorForm)
@@ -915,6 +943,80 @@ private struct NewNoticesSection: View {
 private func daysOpen(from date: Date) -> String {
     let days = max(1, Int(Date().timeIntervalSince(date) / 86400))
     return days == 1 ? "Active since 1 day" : "Active since \(days) days"
+}
+
+/// Dashboard section listing what the occupant currently holds. Mirrors the
+/// layout of OngoingComplaintsSection: header with a "View All" affordance,
+/// then the rows, with a quiet empty state so the section never looks broken.
+private struct MyAssetsSection: View {
+    let assets: [OccupantAsset]
+    let navyBlue: Color
+    let onViewAll: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "shippingbox")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(navyBlue)
+                    Text("My Assets")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                }
+                Spacer()
+                Button(action: onViewAll) {
+                    Text("View All >")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(navyBlue)
+                }
+            }
+
+            if assets.isEmpty {
+                Text("No assets assigned to you")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.6))
+            } else {
+                // Cap the dashboard preview; the full list lives behind "View All".
+                ForEach(assets.prefix(4)) { asset in
+                    Button(action: onViewAll) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(Color(red: 0.910, green: 0.925, blue: 0.969))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "shippingbox")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(navyBlue)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(asset.assetName.isEmpty ? "Asset" : asset.assetName)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
+                                Text("No. \(asset.assetNumber)")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(red: 0.42, green: 0.447, blue: 0.502))
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white))
+                    }
+                    .buttonStyle(.plain)
+                }
+                if assets.count > 4 {
+                    Button(action: onViewAll) {
+                        Text("+\(assets.count - 4) more")
+                            .font(.system(size: 12))
+                            .foregroundColor(navyBlue)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
 }
 
 private struct OngoingComplaintsSection: View {

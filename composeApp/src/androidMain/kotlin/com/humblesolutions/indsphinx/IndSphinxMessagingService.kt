@@ -84,6 +84,9 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
                     putExtra(EXTRA_DEEP_LINK_TYPE, DEEP_LINK_VACANT_REQUEST)
                     if (vacantRequestId.isNotEmpty()) putExtra(EXTRA_VACANT_REQUEST_ID, vacantRequestId)
                 }
+                type == "ASSET" -> {
+                    putExtra(EXTRA_DEEP_LINK_TYPE, DEEP_LINK_ASSET)
+                }
                 // Any other valid push (targeted notification, unknown type,
                 // or no data payload) → open the in-app notifications list.
                 else -> {
@@ -123,5 +126,6 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
         const val DEEP_LINK_COMPLAINT               = "COMPLAINT"
         const val DEEP_LINK_VISITOR_PASS            = "VISITOR_PASS"
         const val DEEP_LINK_VACANT_REQUEST          = "VACANT_REQUEST"
+        const val DEEP_LINK_ASSET                   = "ASSET"
     }
 }

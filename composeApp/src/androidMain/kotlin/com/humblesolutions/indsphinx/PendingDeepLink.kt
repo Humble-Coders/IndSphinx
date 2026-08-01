@@ -11,4 +11,6 @@ sealed class PendingDeepLink {
     object FlatVacantRequest : PendingDeepLink()
     /** Open the in-app notifications screen (no specific record). */
     object OpenNotifications : PendingDeepLink()
+    /** Open the My Assets overlay. */
+    object Assets : PendingDeepLink()
 }

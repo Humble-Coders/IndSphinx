@@ -45,6 +45,7 @@ import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.FlashOn
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.NavigateNext
 import androidx.compose.material.icons.outlined.NotificationsNone
@@ -82,6 +83,7 @@ import androidx.compose.runtime.setValue
 import com.humblesolutions.indsphinx.model.AppNotification
 import com.humblesolutions.indsphinx.model.Complaint
 import com.humblesolutions.indsphinx.model.Notice
+import com.humblesolutions.indsphinx.model.OccupantAsset
 import com.humblesolutions.indsphinx.repository.BackendComplaintRepository
 import androidx.compose.ui.Alignment
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -112,6 +114,7 @@ private sealed class HomeOverlay {
     object CoordinatorForm : HomeOverlay()
     object FlatVacant : HomeOverlay()
     object Notifications : HomeOverlay()
+    object Assets : HomeOverlay()
     data class NoticeQuestion(val noticeId: String) : HomeOverlay()
     data class QuestionNotification(val qnId: String) : HomeOverlay()
 }
@@ -205,6 +208,10 @@ fun HomeScreen(
                 overlay = HomeOverlay.FlatVacant
                 onDeepLinkConsumed()
             }
+            com.humblesolutions.indsphinx.PendingDeepLink.Assets -> {
+                overlay = HomeOverlay.Assets
+                onDeepLinkConsumed()
+            }
             com.humblesolutions.indsphinx.PendingDeepLink.OpenNotifications -> {
                 overlay = HomeOverlay.Notifications
                 onDeepLinkConsumed()
@@ -260,6 +267,8 @@ fun HomeScreen(
     val isCoordinator = ready?.isCoordinator ?: false
     val occupantDocId = ready?.occupantDocId ?: ""
     val flatId = ready?.flatId ?: ""
+    val authUid = ready?.authUid ?: ""
+    val currentAssets by viewModel.currentAssets.collectAsStateWithLifecycle()
 
     LaunchedEffect(occupantDocId) {
         if (occupantDocId.isNotEmpty()) {
@@ -306,6 +315,10 @@ fun HomeScreen(
                 onBack = { overlay = HomeOverlay.None }
             )
             is HomeOverlay.Documents -> DocumentsScreen(
+                onBack = { overlay = HomeOverlay.None }
+            )
+            is HomeOverlay.Assets -> AssetsScreen(
+                authUid = authUid,
                 onBack = { overlay = HomeOverlay.None }
             )
             is HomeOverlay.CoordinatorForm -> CoordinatorFormScreen(
@@ -390,6 +403,10 @@ fun HomeScreen(
                             onNavigateToCoordinatorForm = {
                                 scope.launch { drawerState.close() }
                                 overlay = HomeOverlay.CoordinatorForm
+                            },
+                            onNavigateToAssets = {
+                                scope.launch { drawerState.close() }
+                                overlay = HomeOverlay.Assets
                             },
                             onNavigateToFlatVacant = {
                                 scope.launch { drawerState.close() }
@@ -500,6 +517,11 @@ fun HomeScreen(
                                                 pendingComplaintAction = ComplaintStartAction.OpenComplaint(complaint, occupantDocId)
                                                 selectedTab = 1
                                             }
+                                        )
+                                        Spacer(Modifier.height(20.dp))
+                                        MyAssetsSection(
+                                            assets = currentAssets,
+                                            onViewAll = { overlay = HomeOverlay.Assets }
                                         )
                                         Spacer(Modifier.height(24.dp))
                                     }
@@ -691,6 +713,7 @@ private fun HomeDrawerContent(
     onNavigateToDocuments: () -> Unit = {},
     onNavigateToCoordinatorForm: () -> Unit = {},
     onNavigateToFlatVacant: () -> Unit = {},
+    onNavigateToAssets: () -> Unit = {},
     onSignOut: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxHeight()) {
@@ -719,6 +742,7 @@ private fun HomeDrawerContent(
             DrawerMenuItem(icon = Icons.Outlined.NotificationsNone, label = "Notice Board", onClick = onNavigateToNoticeboard)
             DrawerMenuItem(icon = Icons.Outlined.ChatBubbleOutline, label = "Feedback", onClick = onNavigateToFeedback)
             DrawerMenuItem(icon = Icons.Outlined.Info, label = "Documents", onClick = onNavigateToDocuments)
+            DrawerMenuItem(icon = Icons.Outlined.Inventory2, label = "My Assets", onClick = onNavigateToAssets)
             DrawerMenuItem(icon = Icons.AutoMirrored.Outlined.ExitToApp, label = "Flat Vacant Request", onClick = onNavigateToFlatVacant)
             if (isCoordinator) {
                 HorizontalDivider(color = Color(0xFFEEEEEE), modifier = Modifier.padding(vertical = 4.dp))
@@ -1109,6 +1133,79 @@ private fun NewNoticesSection(notice: Notice?, onViewAll: () -> Unit, onNoticeCl
 private fun daysOpen(dateMillis: Long): String {
     val days = ((System.currentTimeMillis() - dateMillis) / (1000L * 60 * 60 * 24)).coerceAtLeast(1L)
     return if (days == 1L) "Active since 1 day" else "Active since $days days"
+}
+
+/**
+ * Dashboard section listing what the occupant currently holds. Mirrors the
+ * layout of OngoingComplaintsSection: header with a "View All" affordance,
+ * then the rows, with a quiet empty state so the section never looks broken.
+ */
+@Composable
+private fun MyAssetsSection(assets: List<OccupantAsset>, onViewAll: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Inventory2, null, tint = NavyBlue, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("My Assets", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color(0xFF1A1A2E))
+        }
+        Text(
+            "View All >",
+            color = NavyBlue,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.clickable { onViewAll() }
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+    if (assets.isEmpty()) {
+        Text("No assets assigned to you", fontSize = 13.sp, color = Color(0xFF999999))
+    } else {
+        // Cap the dashboard preview; the full list lives behind "View All".
+        assets.take(4).forEach { asset ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .clickable { onViewAll() }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFE8ECF7)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Inventory2, null, tint = NavyBlue, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        asset.assetName.ifEmpty { "Asset" },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1A1A2E)
+                    )
+                    Text("No. ${asset.assetNumber}", fontSize = 12.sp, color = Color(0xFF6B7280))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        if (assets.size > 4) {
+            Text(
+                "+${assets.size - 4} more",
+                fontSize = 12.sp,
+                color = NavyBlue,
+                modifier = Modifier.clickable { onViewAll() }
+            )
+        }
+    }
 }
 
 @Composable

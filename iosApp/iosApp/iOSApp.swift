@@ -20,6 +20,8 @@ class AppNavigationState: ObservableObject {
     /// Set when the user taps a flat-vacant-request push — routes to the
     /// Flat Vacant Request screen.
     @Published var pendingOpenVacantRequest: Bool = false
+    /// Set when the user taps an asset push — routes to the My Assets screen.
+    @Published var pendingOpenAssets: Bool = false
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
@@ -162,6 +164,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 AppNavigationState.shared.pendingOpenVisitorPass = true
             } else if type == "VACANT_REQUEST" {
                 AppNavigationState.shared.pendingOpenVacantRequest = true
+            } else if type == "ASSET" {
+                AppNavigationState.shared.pendingOpenAssets = true
             } else {
                 // TARGETED_NOTIFICATION and any unknown/missing type
                 // → open the in-app notifications list (never the bare Home screen).

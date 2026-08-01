@@ -17,10 +17,12 @@ class HomeViewModel: ObservableObject {
     private let formRepository = BackendResidentialFormRepository()
     private let configRepository = BackendConfigRepository()
     private let coordinatorFormRepository = BackendCoordinatorFormRepository()
+    private let assetRepository = BackendOccupantAssetRepository()
     private var isEnabledListener: ListenerRegistration?
     private var occupantListener: ListenerRegistration?
     private var noticesListener: ListenerRegistration?
     private var notificationsListener: ListenerRegistration?
+    private var assetsListener: ListenerRegistration?
 
     enum State {
         case loading
@@ -34,6 +36,12 @@ class HomeViewModel: ObservableObject {
     @Published var formDueStatus: (isDue: Bool, frequencyMonths: Int)? = nil
     @Published var notifications: [AppNotification] = []
     var unreadCount: Int { notifications.filter { !$0.isRead }.count }
+    /// Firebase Auth UID: what the assets query and its Firestore rule match on.
+    /// Kept beside `state` rather than inside the `.ready` case so the existing
+    /// pattern matches on that enum stay unchanged.
+    @Published var authUid: String = ""
+    /// Assets the occupant currently holds, for the home dashboard section.
+    @Published var currentAssets: [OccupantAsset] = []
     @Published var revisedFormState: RevisedFormState = .hidden
     var showRevisedForm: Bool {
         if case .hidden = revisedFormState { return false }
@@ -49,6 +57,18 @@ class HomeViewModel: ObservableObject {
         occupantListener?.remove()
         noticesListener?.remove()
         notificationsListener?.remove()
+        assetsListener?.remove()
+    }
+
+    /// Keeps the home "My Assets" section in sync with what the occupant holds.
+    private func startObservingAssets(uid: String) {
+        assetsListener?.remove()
+        assetsListener = assetRepository.observeByAuthUid(authUid: uid) { [weak self] snapshot in
+            guard let self else { return }
+            Task { @MainActor in
+                self.currentAssets = snapshot.current
+            }
+        }
     }
 
     private func loadProfile() async {
@@ -83,10 +103,12 @@ class HomeViewModel: ObservableObject {
                 occupantDocId: profile.occupantDocId,
                 flatId: profile.flatId
             )
+            authUid = user.uid
             startObservingEnabled(uid: user.uid)
             startObservingOccupant(occupantDocId: profile.occupantDocId)
             startObservingNotices()
             startObservingNotifications(occupantId: user.uid)
+            startObservingAssets(uid: user.uid)
             // Revised-amenities form only makes sense once a flat is
             // assigned. Without a flat, there's nothing to confirm and the
             // Firestore read would blow up on an empty document path.

@@ -6,6 +6,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.humblesolutions.indsphinx.model.AppNotification
 import com.humblesolutions.indsphinx.model.Notice
+import com.humblesolutions.indsphinx.model.OccupantAsset
+import com.humblesolutions.indsphinx.repository.BackendOccupantAssetRepository
+import com.humblesolutions.indsphinx.usecase.ObserveOccupantAssetsUseCase
 import com.humblesolutions.indsphinx.model.ResidentialAgreement
 import com.humblesolutions.indsphinx.repository.BackendResidentialFormRepository
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
@@ -54,7 +57,9 @@ sealed class HomeUiState {
         val occupantFrom: Long,
         val isCoordinator: Boolean,
         val occupantDocId: String,
-        val flatId: String
+        val flatId: String,
+        /** Firebase Auth UID: what the assets query and its Firestore rule match on. */
+        val authUid: String
     ) : HomeUiState()
     data class AccessDenied(val reason: String) : HomeUiState()
 }
@@ -68,6 +73,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val checkFormDueUseCase = CheckFormDueUseCase(BackendConfigRepository(), BackendCoordinatorFormRepository())
     private val validateOccupantUseCase = ValidateOccupantUseCase(userProfileRepo)
     private val observeNotificationsUseCase = ObserveNotificationsUseCase(notificationRepo)
+    private val observeAssetsUseCase = ObserveOccupantAssetsUseCase(BackendOccupantAssetRepository())
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -82,9 +88,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     private val _revisedFormState = MutableStateFlow<RevisedFormState>(RevisedFormState.Hidden)
     val revisedFormState: StateFlow<RevisedFormState> = _revisedFormState.asStateFlow()
+    /** Assets the occupant currently holds, for the home dashboard section. */
+    private val _currentAssets = MutableStateFlow<List<OccupantAsset>>(emptyList())
+    val currentAssets: StateFlow<List<OccupantAsset>> = _currentAssets.asStateFlow()
     private var enabledListenerJob: Job? = null
     private var occupantListenerJob: Job? = null
     private var notificationsJob: Job? = null
+    private var assetsJob: Job? = null
 
     init {
         loadProfile()
@@ -181,11 +191,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     occupantFrom = profile.occupantFrom,
                     isCoordinator = profile.isCoordinator,
                     occupantDocId = profile.occupantDocId,
-                    flatId = profile.flatId
+                    flatId = profile.flatId,
+                    authUid = uid
                 )
                 startObservingEnabled(uid)
                 startObservingOccupant(profile.occupantDocId)
                 startObservingNotifications(uid)
+                startObservingAssets(uid)
                 // Revised-amenities form only makes sense once a flat is
                 // assigned. Without a flat, there's nothing to confirm and the
                 // Firestore read would blow up on an empty document path.
@@ -196,6 +208,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 authRepository.signOutAndClearFcm()
                 _uiState.value = HomeUiState.AccessDenied(e.message ?: "Access denied.")
+            }
+        }
+    }
+
+    /** Keeps the home "My Assets" section in sync with what the occupant holds. */
+    private fun startObservingAssets(uid: String) {
+        assetsJob?.cancel()
+        assetsJob = viewModelScope.launch {
+            try {
+                observeAssetsUseCase.execute(uid).collect { snapshot ->
+                    _currentAssets.value = snapshot.current
+                }
+            } catch (e: Exception) {
+                // Non-fatal: the dashboard section simply stays empty.
+                Log.e("HomeViewModel", "assets observe failed: ${e.message}")
+                _currentAssets.value = emptyList()
             }
         }
     }
