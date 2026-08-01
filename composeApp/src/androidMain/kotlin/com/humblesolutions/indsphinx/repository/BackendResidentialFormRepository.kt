@@ -13,6 +13,11 @@ class BackendResidentialFormRepository : ResidentialFormRepository {
 
     @Suppress("UNCHECKED_CAST")
     override suspend fun getFlatAmenities(flatId: String): Pair<List<String>, List<String>> {
+        // Last line of defence. An empty id makes this the 1-segment path
+        // "flats", and the SDK's "even number of segments" error would reach
+        // the user verbatim. Callers guard too; this keeps that true for any
+        // caller added later.
+        require(flatId.isNotBlank()) { "No flat is assigned to this account." }
         Log.d(TAG, "getFlatAmenities: fetching flat doc id='$flatId'")
         val doc = db.collection("flats").document(flatId).get().await()
         Log.d(TAG, "getFlatAmenities: exists=${doc.exists()}, data keys=${doc.data?.keys}")

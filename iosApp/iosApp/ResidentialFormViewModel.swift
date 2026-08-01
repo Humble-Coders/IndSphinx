@@ -52,6 +52,15 @@ class ResidentialFormViewModel: ObservableObject {
             let profile = try await userProfileRepository.getProfile(uid: user.uid)
             guard profile.enabled else { state = .error("Your account has been disabled."); return }
             if profile.hasAcceptedAgreement { state = .submitted; return }
+            // The whole form describes a flat (its amenities and the terms for
+            // living in it), so it cannot be filled without one. An occupant can
+            // reach this screen before being assigned a flat, and an empty
+            // flatId would otherwise hit Firestore as the 1-segment path
+            // "flats" and surface a raw SDK error.
+            if profile.flatId.isEmpty {
+                state = .error("You have not been assigned a flat yet. Please contact the administrator.")
+                return
+            }
             let (common, room) = try await formRepository.getFlatAmenities(flatId: profile.flatId)
             let termsHtml = try await formRepository.getTermsAndConditions()
             state = .ready(

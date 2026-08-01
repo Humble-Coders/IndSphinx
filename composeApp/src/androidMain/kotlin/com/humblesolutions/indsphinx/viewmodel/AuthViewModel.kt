@@ -3,6 +3,11 @@ package com.humblesolutions.indsphinx.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.FirebaseTooManyRequestsException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.messaging.FirebaseMessaging
 import com.humblesolutions.indsphinx.model.User
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
@@ -71,7 +76,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         )
                         return@launch
                     }
-                    _uiState.value = AuthUiState.Success(user, needsAgreement = !profile.hasAcceptedAgreement)
+                    // The agreement covers a specific flat, so it can only be
+                    // presented once one is assigned. Without a flat the
+                    // occupant goes straight to Home and sees the form on a
+                    // later launch, once an admin assigns them a flat.
+                    _uiState.value = AuthUiState.Success(
+                        user,
+                        needsAgreement = !profile.hasAcceptedAgreement && profile.flatId.isNotBlank()
+                    )
                 } catch (e: Exception) {
                     // Auth succeeded but profile check failed. No FCM token was
                     // written yet (token write happens after this block), so
@@ -79,7 +91,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     // we still need it to revoke the local FCM token and
                     // release the auth session.
                     authRepository.signOutAndClearFcm()
-                    _uiState.value = AuthUiState.Error(e.message ?: "Access denied.")
+                    // ValidateOccupantUseCase throws messages written for the
+                    // resident ("Your account has been disabled..."), so those
+                    // are shown as-is. A backend failure here is not, or the
+                    // login screen would print raw Firestore text.
+                    _uiState.value = AuthUiState.Error(
+                        if (e is FirebaseFirestoreException || e is FirebaseNetworkException) {
+                            "Could not verify your account. Please check your connection and try again."
+                        } else {
+                            e.message ?: "Access denied."
+                        }
+                    )
                 }
             } catch (e: Exception) {
                 _uiState.value = AuthUiState.Error(friendlyMessage(e))
@@ -124,13 +146,34 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         else -> "Something went wrong. Please try again."
     }
 
-    private fun friendlyMessage(e: Exception): String {
-        val msg = e.message ?: return "Authentication failed"
-        return when {
-            "password is invalid" in msg || "INVALID_LOGIN_CREDENTIALS" in msg -> "Incorrect email or password"
-            "no user record" in msg -> "No account found with this email"
-            "badly formatted" in msg -> "Invalid email format"
-            else -> msg
-        }
+    /**
+     * Turns an auth failure into something a resident can act on.
+     *
+     * Matches on exception type and Firebase error CODE rather than on the
+     * message text: the message wording changes between SDK releases, and the
+     * old string matching silently fell through to showing the raw SDK error.
+     * The final branch is deliberately generic so no internal text can ever
+     * reach the login screen.
+     *
+     * Wrong password and unknown email both return the same wording on
+     * purpose. Firebase collapses them when email enumeration protection is
+     * on, and saying which one was wrong tells an attacker which emails exist.
+     */
+    private fun friendlyMessage(e: Exception): String = when (e) {
+        is FirebaseAuthInvalidCredentialsException ->
+            if (e.errorCode == "ERROR_INVALID_EMAIL") "Please enter a valid email address."
+            else "Incorrect email or password. Please try again."
+
+        is FirebaseAuthInvalidUserException ->
+            if (e.errorCode == "ERROR_USER_DISABLED") "Your account has been disabled. Please contact the admin."
+            else "Incorrect email or password. Please try again."
+
+        is FirebaseNetworkException ->
+            "No internet connection. Please check your network and try again."
+
+        is FirebaseTooManyRequestsException ->
+            "Too many failed attempts. Please wait a few minutes and try again."
+
+        else -> "Could not sign you in. Please try again."
     }
 }

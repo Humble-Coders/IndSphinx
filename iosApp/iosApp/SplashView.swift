@@ -91,13 +91,17 @@ struct SplashView: View {
             } catch {
                 print("[FCM-iOS] SplashView — Messaging.token() failed: \(error)")
             }
-            let hasAccepted: Bool
+            // The agreement covers a specific flat, so it can only be presented
+            // once one is assigned. Treating "no flat" as nothing-to-sign sends
+            // the occupant to Home instead of trapping them on a form that
+            // cannot be built.
+            let needsAgreement: Bool
             if let profile = try? await userProfileRepo.getProfile(uid: currentUser.uid) {
-                hasAccepted = profile.hasAcceptedAgreement
+                needsAgreement = !profile.hasAcceptedAgreement && !profile.flatId.isEmpty
             } else {
-                hasAccepted = true
+                needsAgreement = false
             }
-            onSplashComplete(hasAccepted ? .home : .residentialForm)
+            onSplashComplete(needsAgreement ? .residentialForm : .home)
         }
     }
 }

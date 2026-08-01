@@ -79,6 +79,18 @@ class ResidentialFormViewModel(application: Application) : AndroidViewModel(appl
                     _uiState.value = ResidentialFormUiState.Submitted
                     return@launch
                 }
+                // The whole form describes a flat (its amenities and the terms
+                // for living in it), so it cannot be filled without one. An
+                // occupant can reach this screen before being assigned a flat,
+                // and an empty flatId would otherwise hit Firestore as the
+                // 1-segment path "flats" and surface a raw SDK error.
+                if (profile.flatId.isBlank()) {
+                    Log.d(TAG, "loadForm: occupant has no flat assigned; showing guidance instead of the form")
+                    _uiState.value = ResidentialFormUiState.Error(
+                        "You have not been assigned a flat yet. Please contact the administrator."
+                    )
+                    return@launch
+                }
                 Log.d(TAG, "loadForm: fetching amenities for flatNumber='${profile.flatNumber}'")
                 val (common, room) = formRepository.getFlatAmenities(profile.flatId)
                 Log.d(TAG, "loadForm: amenities fetched common=$common room=$room")

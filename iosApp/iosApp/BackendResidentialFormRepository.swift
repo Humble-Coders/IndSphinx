@@ -4,7 +4,16 @@ import FirebaseFirestore
 class BackendResidentialFormRepository {
     private let db = Firestore.firestore()
 
+    struct NoFlatAssignedError: LocalizedError {
+        var errorDescription: String? { "No flat is assigned to this account." }
+    }
+
     func getFlatAmenities(flatId: String) async throws -> (common: [String], room: [String]) {
+        // Last line of defence. An empty id makes this the 1-segment path
+        // "flats", and the SDK's "even number of segments" error would reach
+        // the user verbatim. Callers guard too; this keeps that true for any
+        // caller added later.
+        guard !flatId.isEmpty else { throw NoFlatAssignedError() }
         let doc = try await db.collection("flats").document(flatId).getDocument()
         let data = doc.data() ?? [:]
         let common = data["CommonAmenitites"] as? [String] ?? []

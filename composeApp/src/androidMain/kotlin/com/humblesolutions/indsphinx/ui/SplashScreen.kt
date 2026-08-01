@@ -57,11 +57,15 @@ fun SplashScreen(onSplashComplete: (SplashDestination) -> Unit) {
                 val token = FirebaseMessaging.getInstance().token.await()
                 userProfileRepo.updateFcmToken(currentUser.uid, token)
             } catch (_: Exception) {}
-            val hasAccepted = try {
+            // The agreement covers a specific flat, so it can only be presented
+            // once one is assigned. Treating "no flat" as nothing-to-sign sends
+            // the occupant to Home instead of trapping them on a form that
+            // cannot be built.
+            val needsAgreement = try {
                 val profile = userProfileRepo.getProfile(currentUser.uid)
-                profile.hasAcceptedAgreement
-            } catch (_: Exception) { true }
-            onSplashComplete(if (hasAccepted) SplashDestination.HOME else SplashDestination.NEEDS_AGREEMENT)
+                !profile.hasAcceptedAgreement && profile.flatId.isNotBlank()
+            } catch (_: Exception) { false }
+            onSplashComplete(if (needsAgreement) SplashDestination.NEEDS_AGREEMENT else SplashDestination.HOME)
         } else {
             onSplashComplete(SplashDestination.NOT_LOGGED_IN)
         }

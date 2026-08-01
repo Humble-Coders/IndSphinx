@@ -1,4 +1,5 @@
 import Foundation
+import FirebaseAuth
 import FirebaseMessaging
 
 enum AuthUiState: Equatable {
@@ -61,7 +62,14 @@ class AuthViewModel: ObservableObject {
                     uiState = .error(message: "Could not register this device for notifications. Please check your connection and try again.")
                     return
                 }
-                uiState = .success(email: user.email, needsAgreement: !profile.hasAcceptedAgreement)
+                // The agreement covers a specific flat, so it can only be
+                // presented once one is assigned. Without a flat the occupant
+                // goes straight to Home and sees the form on a later launch,
+                // once an admin assigns them a flat.
+                uiState = .success(
+                    email: user.email,
+                    needsAgreement: !profile.hasAcceptedAgreement && !profile.flatId.isEmpty
+                )
             } catch let err as NSError where err.domain == "UserProfile" {
                 // Auth succeeded but profile check failed — sign out + clear
                 // the FCM token we just wrote (if the token write reached
@@ -118,13 +126,35 @@ class AuthViewModel: ObservableObject {
         }
     }
 
+    /// Turns an auth failure into something a resident can act on.
+    ///
+    /// Matches on the Firebase error CODE rather than on `localizedDescription`:
+    /// the wording changes between SDK releases, and the old string matching
+    /// silently fell through to showing the raw SDK error. The default branch
+    /// is deliberately generic so no internal text can ever reach the login
+    /// screen.
+    ///
+    /// Wrong password and unknown email both return the same wording on
+    /// purpose. Firebase collapses them when email enumeration protection is
+    /// on, and saying which one was wrong tells an attacker which emails exist.
     private func friendlyError(_ error: Error) -> String {
-        let msg = error.localizedDescription
-        if msg.contains("password is invalid") || msg.contains("incorrect password") || msg.contains("INVALID_LOGIN_CREDENTIALS") {
-            return "Incorrect email or password"
+        let nsError = error as NSError
+        guard let code = AuthErrorCode(rawValue: nsError.code) else {
+            return "Could not sign you in. Please try again."
         }
-        if msg.contains("no user record") || msg.contains("user not found") { return "No account found with this email" }
-        if msg.contains("badly formatted") { return "Invalid email format" }
-        return msg
+        switch code {
+        case .invalidEmail:
+            return "Please enter a valid email address."
+        case .wrongPassword, .invalidCredential, .userNotFound:
+            return "Incorrect email or password. Please try again."
+        case .userDisabled:
+            return "Your account has been disabled. Please contact the admin."
+        case .networkError:
+            return "No internet connection. Please check your network and try again."
+        case .tooManyRequests:
+            return "Too many failed attempts. Please wait a few minutes and try again."
+        default:
+            return "Could not sign you in. Please try again."
+        }
     }
 }
