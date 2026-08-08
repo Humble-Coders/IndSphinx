@@ -41,7 +41,14 @@ class ComplaintsViewModel: ObservableObject {
                 case .loadingTemplates, .selectCategory:
                     self.state = .selectCategory(templates)
                 case .submitForm(_, let selected):
-                    self.state = .submitForm(templates: templates, selected: selected)
+                    // Refresh the SELECTED template too, not just the list. Without
+                    // this the open form keeps a stale copy, so an admin changing a
+                    // problem's default priority while the occupant is filling it in
+                    // would never be picked up. Falls back to the current selection
+                    // if the category has since been deleted, so the form is never
+                    // yanked away.
+                    let refreshed = templates.first { $0.category == selected.category } ?? selected
+                    self.state = .submitForm(templates: templates, selected: refreshed)
                 default:
                     break
                 }
@@ -78,6 +85,11 @@ class ComplaintsViewModel: ObservableObject {
         videoURLs: [URL] = []
     ) {
         guard case .submitForm(_, let template) = state else { return }
+        // Re-derive rather than trusting the value the view passed in: the
+        // template comes from a live listener, so an admin edit can land between
+        // the view rendering and the occupant tapping Submit. An admin-set
+        // priority always wins; otherwise the occupant's own pick is used.
+        let effectivePriority = template.priority(for: problem) ?? priority
         state = .submitting(selected: template)
 
         let storageRepo = self.storageRepo
@@ -123,7 +135,7 @@ class ComplaintsViewModel: ObservableObject {
                     occupantName: occupantName,
                     occupantId: occupantDocId,
                     category: template.category,
-                    priority: priority,
+                    priority: effectivePriority,
                     description: description,
                     problem: problem,
                     mediaUrls: mediaUrls

@@ -420,7 +420,10 @@ private struct SubmitComplaintFormView: View {
 
     @State private var selectedProblem = ""
     @State private var description = ""
-    @State private var selectedPriority = ""
+    /// The occupant's OWN pick, kept separate from the admin lock. Preserved
+    /// while a locked problem is selected so that switching to an unlocked
+    /// problem restores their earlier choice instead of silently clearing it.
+    @State private var occupantPriority = ""
 
     // Media
     @State private var pickedImages: [UIImage] = []
@@ -435,8 +438,22 @@ private struct SubmitComplaintFormView: View {
     @State private var previewImage: UIImage? = nil
     @State private var previewVideoURL: URL? = nil
 
+    /// Admin-decided priority for the current problem, or nil when the occupant
+    /// chooses. Recomputed on every render, so an admin editing the priority
+    /// while this form is open (the template comes from a live listener) is
+    /// picked up automatically.
+    private var lockedPriority: String? {
+        template.priority(for: selectedProblem)
+    }
+
+    /// A locked value always wins, including over anything the occupant picked
+    /// before choosing their problem.
+    private var effectivePriority: String {
+        lockedPriority ?? occupantPriority
+    }
+
     private var canSubmit: Bool {
-        !selectedProblem.isEmpty && !selectedPriority.isEmpty && !isSubmitting
+        !selectedProblem.isEmpty && !effectivePriority.isEmpty && !isSubmitting
     }
 
     var body: some View {
@@ -546,15 +563,32 @@ private struct SubmitComplaintFormView: View {
                         Text("Priority Level")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(Color(red: 0.102, green: 0.102, blue: 0.18))
-                        VStack(spacing: 10) {
-                            ForEach([["Low", "Medium"], ["High", "Emergency"]], id: \.first) { row in
-                                HStack(spacing: 10) {
-                                    ForEach(row, id: \.self) { p in
-                                        PriorityButton(
-                                            label: p,
-                                            isSelected: selectedPriority == p
-                                        ) {
-                                            selectedPriority = selectedPriority == p ? "" : p
+                        if let locked = lockedPriority {
+                            // Set by the admin for this problem. Shown read-only rather
+                            // than as four disabled buttons, which would invite tapping.
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(locked)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                                    .background(priorityFillColor(for: locked))
+                                    .cornerRadius(10)
+                                Text("Set automatically for this problem.")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(white: 0.53))
+                            }
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach([["Low", "Medium"], ["High", "Emergency"]], id: \.first) { row in
+                                    HStack(spacing: 10) {
+                                        ForEach(row, id: \.self) { p in
+                                            PriorityButton(
+                                                label: p,
+                                                isSelected: occupantPriority == p
+                                            ) {
+                                                occupantPriority = occupantPriority == p ? "" : p
+                                            }
                                         }
                                     }
                                 }
@@ -692,7 +726,7 @@ private struct SubmitComplaintFormView: View {
             Divider()
             Button(action: {
                 if canSubmit {
-                    onSubmit(selectedProblem, description, selectedPriority, pickedImages, cameraVideoURLs)
+                    onSubmit(selectedProblem, description, effectivePriority, pickedImages, cameraVideoURLs)
                 }
             }) {
                 ZStack {
@@ -720,6 +754,14 @@ private struct SubmitComplaintFormView: View {
             CameraPickerView(mediaType: .video) { _ in } onVideoCapture: { url in
                 cameraVideoURLs.append(url)
             } onDismiss: { showCameraVideo = false }
+        }
+        // The template refreshes live while this form is open. If the admin
+        // deletes the problem the occupant had picked, drop the stale selection
+        // — otherwise no chip would look selected while Submit stayed enabled.
+        .onChange(of: template) { newTemplate in
+            if !selectedProblem.isEmpty && !newTemplate.problems.contains(selectedProblem) {
+                selectedProblem = ""
+            }
         }
         .onChange(of: photoPickerItems) { items in
             Task {
@@ -799,20 +841,23 @@ private struct SubmitComplaintFormView: View {
     }
 }
 
+/// Solid fill used by the priority selector and by the read-only badge shown
+/// when the admin has fixed the priority for a problem. Kept as one function so
+/// a locked "High" is exactly the colour a selected "High" button would be.
+private func priorityFillColor(for label: String) -> Color {
+    switch label {
+    case "Low":       return Color(red: 0.298, green: 0.686, blue: 0.314)
+    case "Medium":    return Color(red: 1.0,   green: 0.757, blue: 0.027)
+    case "High":      return Color(red: 1.0,   green: 0.596, blue: 0.0)
+    case "Emergency": return Color(red: 0.957, green: 0.263, blue: 0.212)
+    default:          return Color(red: 0.118, green: 0.176, blue: 0.42)
+    }
+}
+
 private struct PriorityButton: View {
     let label: String
     let isSelected: Bool
     let action: () -> Void
-
-    private var activeColor: Color {
-        switch label {
-        case "Low":       return Color(red: 0.298, green: 0.686, blue: 0.314)
-        case "Medium":    return Color(red: 1.0,   green: 0.757, blue: 0.027)
-        case "High":      return Color(red: 1.0,   green: 0.596, blue: 0.0)
-        case "Emergency": return Color(red: 0.957, green: 0.263, blue: 0.212)
-        default:          return Color(red: 0.118, green: 0.176, blue: 0.42)
-        }
-    }
 
     var body: some View {
         Button(action: action) {
@@ -821,7 +866,7 @@ private struct PriorityButton: View {
                 .foregroundColor(isSelected ? .white : Color(white: 0.27))
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
-                .background(isSelected ? activeColor : Color(white: 0.96))
+                .background(isSelected ? priorityFillColor(for: label) : Color(white: 0.96))
                 .cornerRadius(10)
         }
     }

@@ -818,9 +818,33 @@ private fun SubmitComplaintScreen(
 ) {
     var selectedProblem by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var selectedPriority by remember { mutableStateOf("") }
+    // The occupant's OWN pick, kept separate from the admin lock. Preserved
+    // while a locked problem is selected so that switching to an unlocked
+    // problem restores their earlier choice instead of silently clearing it.
+    var occupantPriority by remember { mutableStateOf("") }
+
+    // Admin-decided priority for the current problem, or null when the occupant
+    // chooses. Recomputed whenever the problem OR the template changes — the
+    // template arrives from a live snapshot listener, so an admin editing the
+    // priority while this form is open is picked up here.
+    val lockedPriority = remember(template, selectedProblem) {
+        template.priorityFor(selectedProblem)
+    }
+    // A locked value always wins, including over anything the occupant picked
+    // before choosing their problem.
+    val effectivePriority = lockedPriority ?: occupantPriority
+
+    // The template refreshes live while this form is open. If the admin deletes
+    // the problem the occupant had picked, drop the stale selection — otherwise
+    // no chip would look selected while Submit stayed enabled.
+    LaunchedEffect(template) {
+        if (selectedProblem.isNotBlank() && selectedProblem !in template.problems) {
+            selectedProblem = ""
+        }
+    }
+
     val visuals = categoryVisuals(template.category)
-    val canSubmit = selectedProblem.isNotBlank() && selectedPriority.isNotBlank() && !isSubmitting
+    val canSubmit = selectedProblem.isNotBlank() && effectivePriority.isNotBlank() && !isSubmitting
 
     // Media
     val context = LocalContext.current
@@ -999,37 +1023,57 @@ private fun SubmitComplaintScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Priority Level", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF1A1A2E))
                         Spacer(Modifier.height(12.dp))
-                        val priorities = listOf("Low", "Medium", "High", "Emergency")
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            for (row in priorities.chunked(2)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    row.forEach { p ->
-                                        val selected = selectedPriority == p
-                                        val activeColor = when (p) {
-                                            "Low" -> Color(0xFF4CAF50)
-                                            "Medium" -> Color(0xFFFFC107)
-                                            "High" -> Color(0xFFFF9800)
-                                            "Emergency" -> Color(0xFFF44336)
-                                            else -> NavyBlue
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(if (selected) activeColor else Color(0xFFF5F5F5))
-                                                .clickable { selectedPriority = if (selected) "" else p }
-                                                .padding(vertical = 14.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                p,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = if (selected) Color.White else Color(0xFF666666)
-                                            )
+                        if (lockedPriority != null) {
+                            // Set by the admin for this problem. Shown read-only rather
+                            // than as four disabled buttons, which would invite tapping.
+                            val lockedColor = priorityColor(lockedPriority)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(lockedColor)
+                                    .padding(vertical = 14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    lockedPriority,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Set automatically for this problem.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF888888)
+                            )
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                for (row in ComplaintTemplate.PRIORITIES.chunked(2)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        row.forEach { p ->
+                                            val selected = occupantPriority == p
+                                            val activeColor = priorityColor(p)
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(if (selected) activeColor else Color(0xFFF5F5F5))
+                                                    .clickable { occupantPriority = if (selected) "" else p }
+                                                    .padding(vertical = 14.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    p,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = if (selected) Color.White else Color(0xFF666666)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1092,7 +1136,7 @@ private fun SubmitComplaintScreen(
             HorizontalDivider(color = Color(0xFFEEEEEE))
             Box(modifier = Modifier.fillMaxWidth().background(Color.White).padding(16.dp)) {
                 Button(
-                    onClick = { onSubmit(selectedProblem, description, selectedPriority, mediaItems.map { it.uri }) },
+                    onClick = { onSubmit(selectedProblem, description, effectivePriority, mediaItems.map { it.uri }) },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     enabled = canSubmit,
                     shape = RoundedCornerShape(12.dp),
@@ -1295,6 +1339,19 @@ private fun StatusChip(status: String) {
     ) {
         Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = fg)
     }
+}
+
+/**
+ * Solid fill used by the priority selector and by the read-only badge shown
+ * when the admin has fixed the priority for a problem. Kept as one function so
+ * a locked "High" is exactly the colour a selected "High" button would be.
+ */
+private fun priorityColor(priority: String): Color = when (priority) {
+    "Low" -> Color(0xFF4CAF50)
+    "Medium" -> Color(0xFFFFC107)
+    "High" -> Color(0xFFFF9800)
+    "Emergency" -> Color(0xFFF44336)
+    else -> NavyBlue
 }
 
 @Composable

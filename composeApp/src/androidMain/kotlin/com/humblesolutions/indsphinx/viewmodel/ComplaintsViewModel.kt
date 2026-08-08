@@ -79,7 +79,16 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
                         is ComplaintsUiState.SelectCategory -> _uiState.value = ComplaintsUiState.SelectCategory(templates)
                         is ComplaintsUiState.SubmitForm -> {
                             val cur = _uiState.value as ComplaintsUiState.SubmitForm
-                            _uiState.value = cur.copy(templates = templates)
+                            // Refresh the SELECTED template too, not just the list.
+                            // Without this the open form keeps a stale copy, so an
+                            // admin changing a problem's default priority while the
+                            // occupant is filling it in would never be picked up.
+                            // Falls back to the current selection if the category has
+                            // since been deleted, so the form is never yanked away.
+                            val refreshed = templates.firstOrNull {
+                                it.category == cur.selectedTemplate.category
+                            } ?: cur.selectedTemplate
+                            _uiState.value = cur.copy(templates = templates, selectedTemplate = refreshed)
                         }
                         else -> {}
                     }
@@ -119,6 +128,11 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
         mediaUris: List<Uri> = emptyList()
     ) {
         val template = (_uiState.value as? ComplaintsUiState.SubmitForm)?.selectedTemplate ?: return
+        // Re-derive rather than trusting the value the screen passed in: the
+        // template comes from a live listener, so an admin edit can land between
+        // the screen composing and the occupant tapping Submit. An admin-set
+        // priority always wins; otherwise the occupant's own pick is used.
+        val effectivePriority = template.priorityFor(problem) ?: priority
         viewModelScope.launch {
             _uiState.value = ComplaintsUiState.Submitting
             try {
@@ -149,7 +163,7 @@ class ComplaintsViewModel(application: Application) : AndroidViewModel(applicati
                     category = template.category,
                     date = System.currentTimeMillis(),
                     status = "OPEN",
-                    priority = priority,
+                    priority = effectivePriority,
                     description = description,
                     problem = problem,
                     mediaUrls = mediaUrls
