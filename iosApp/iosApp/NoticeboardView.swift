@@ -3,6 +3,9 @@ import SwiftUI
 struct NoticeboardView: View {
     let onMenuTap: () -> Void
     var initialNotice: Notice? = nil
+    /// Called once `initialNotice` has been opened, so the next tap on the
+    /// same notice from Home opens it again.
+    var onInitialNoticeConsumed: () -> Void = {}
     var displayName: String = ""
     var flatNo: String = ""
     var recipientType: String = ""
@@ -22,6 +25,17 @@ struct NoticeboardView: View {
                     recipientType: recipientType,
                     onBack: { viewModel.onBackFromDetail() }
                 )
+            } else if let notice = viewModel.surveyNotice {
+                SurveyView(
+                    noticeId: notice.id,
+                    forSelected: notice.forSelectedResidents,
+                    displayName: displayName,
+                    flatNo: flatNo,
+                    recipientType: recipientType,
+                    onBack: { viewModel.onBackFromDetail() }
+                )
+                // A new view model per survey, never one carried over.
+                .id("\(notice.forSelectedResidents ? "selected" : "board"):\(notice.id)")
             } else if viewModel.selectedNotice != nil {
                 NoticeDetailHeaderView(
                     navyBlue: navyBlue,
@@ -47,6 +61,14 @@ struct NoticeboardView: View {
         .onChange(of: initialNotice) { notice in
             guard let notice else { return }
             viewModel.openNoticeDirectly(notice)
+            onInitialNoticeConsumed()
+        }
+        // The first time the tab is shown it can arrive with the notice
+        // already set, which onChange does not report.
+        .onAppear {
+            guard let notice = initialNotice else { return }
+            viewModel.openNoticeDirectly(notice)
+            onInitialNoticeConsumed()
         }
     }
 }
@@ -131,7 +153,7 @@ private struct NoticeListContentView: View {
                         .padding(.top, 48)
                 } else {
                     VStack(spacing: 12) {
-                        ForEach(notices) { notice in
+                        ForEach(notices, id: \.key) { notice in
                             NoticeCardView(
                                 notice: notice,
                                 navyBlue: navyBlue,
@@ -154,6 +176,7 @@ private struct NoticeCardView: View {
     let onTap: () -> Void
 
     private var isQuestion: Bool { notice.type == "question" }
+    private var isSurvey: Bool { notice.isSurvey }
 
     var body: some View {
         Button(action: onTap) {
@@ -178,6 +201,24 @@ private struct NoticeCardView: View {
                         .background(Color(red: 1.0, green: 0.953, blue: 0.878))
                         .cornerRadius(20)
                     }
+                    if isSurvey {
+                        HStack(spacing: 3) {
+                            Image(systemName: "checklist")
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(red: 0.416, green: 0.106, blue: 0.604))
+                            Text("Survey")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(Color(red: 0.416, green: 0.106, blue: 0.604))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(red: 0.953, green: 0.898, blue: 0.961))
+                        .cornerRadius(20)
+                    }
+                }
+
+                if notice.forSelectedResidents {
+                    SelectedResidentsChip()
                 }
 
                 HStack(spacing: 4) {
@@ -196,7 +237,7 @@ private struct NoticeCardView: View {
                     .multilineTextAlignment(.leading)
 
                 HStack(spacing: 2) {
-                    Text(isQuestion ? "Respond" : "View Details")
+                    Text(isSurvey ? "Take Survey" : (isQuestion ? "Respond" : "View Details"))
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(navyBlue)
                     Image(systemName: "chevron.right")

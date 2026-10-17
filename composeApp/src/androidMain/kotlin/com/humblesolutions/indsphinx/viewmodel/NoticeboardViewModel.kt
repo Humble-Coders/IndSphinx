@@ -16,6 +16,7 @@ sealed class NoticeboardUiState {
     data class Loaded(val notices: List<Notice>) : NoticeboardUiState()
     data class Detail(val notice: Notice, val notices: List<Notice>) : NoticeboardUiState()
     data class Question(val notice: Notice, val notices: List<Notice>) : NoticeboardUiState()
+    data class Survey(val notice: Notice, val notices: List<Notice>) : NoticeboardUiState()
     data class Error(val message: String) : NoticeboardUiState()
 }
 
@@ -41,6 +42,10 @@ class NoticeboardViewModel(application: Application) : AndroidViewModel(applicat
                         current is NoticeboardUiState.Question -> {
                             val refreshed = notices.find { it.id == current.notice.id } ?: current.notice
                             NoticeboardUiState.Question(refreshed, notices)
+                        }
+                        current is NoticeboardUiState.Survey -> {
+                            val refreshed = notices.find { it.id == current.notice.id } ?: current.notice
+                            NoticeboardUiState.Survey(refreshed, notices)
                         }
                         pendingNoticeId != null -> {
                             val id = pendingNoticeId!!
@@ -92,12 +97,15 @@ class NoticeboardViewModel(application: Application) : AndroidViewModel(applicat
         val notices = when (val s = _uiState.value) {
             is NoticeboardUiState.Detail -> s.notices
             is NoticeboardUiState.Question -> s.notices
+            is NoticeboardUiState.Survey -> s.notices
             else -> return
         }
         _uiState.value = NoticeboardUiState.Loaded(notices)
     }
 
-    private fun stateForNotice(notice: Notice, notices: List<Notice>): NoticeboardUiState =
-        if (notice.type == "question") NoticeboardUiState.Question(notice, notices)
-        else NoticeboardUiState.Detail(notice, notices)
+    private fun stateForNotice(notice: Notice, notices: List<Notice>): NoticeboardUiState = when {
+        notice.type == "question" -> NoticeboardUiState.Question(notice, notices)
+        notice.isSurvey -> NoticeboardUiState.Survey(notice, notices)
+        else -> NoticeboardUiState.Detail(notice, notices)
+    }
 }

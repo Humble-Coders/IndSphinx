@@ -1,5 +1,60 @@
 import SwiftUI
 
+/// Limits on a resident's answer to a notice-board or notification question.
+///
+/// Mirrors `QuestionAnswer` in the shared Kotlin module, which this app does
+/// not import. Counts UTF-16 units, as Kotlin's `length` and the admin
+/// portal's JavaScript do, so "500" means the same on every platform. Swift's
+/// `count` would count visible characters instead, and for Hindi that can be
+/// several times fewer: "क्षि" is one visible character but four units.
+enum QuestionAnswer {
+    static let maxTextLength = 500
+
+    /// `text` cut to the limit without splitting a visible character.
+    static func cap(_ text: String) -> String {
+        guard text.utf16.count > maxTextLength else { return text }
+        var result = ""
+        var used = 0
+        for character in text {
+            let units = character.utf16.count
+            if used + units > maxTextLength { break }
+            result.append(character)
+            used += units
+        }
+        return result
+    }
+
+    /// What a text field should hold after an edit turned `previous` into
+    /// `proposed`. Mirrors `QuestionAnswer.limitEdit` in the shared Kotlin
+    /// module. Within the limit the edit simply stands. Past it, an answer
+    /// already at the limit stays as it was, so typing in the middle of a full
+    /// answer never silently pushes its end off; otherwise the text before
+    /// and after the edit is kept, plus as much of the inserted text as fits,
+    /// in whole visible characters. If none of it fits, nothing changes.
+    static func limitEdit(previous: String, proposed: String) -> String {
+        if proposed.utf16.count <= maxTextLength { return proposed }
+        if previous.utf16.count >= maxTextLength { return previous }
+        let old = Array(previous)
+        let new = Array(proposed)
+        var prefix = 0
+        while prefix < old.count, prefix < new.count, old[prefix] == new[prefix] { prefix += 1 }
+        var suffix = 0
+        while suffix < old.count - prefix, suffix < new.count - prefix,
+              old[old.count - 1 - suffix] == new[new.count - 1 - suffix] { suffix += 1 }
+        let head = String(new[..<prefix])
+        let tail = String(new[(new.count - suffix)...])
+        var room = maxTextLength - head.utf16.count - tail.utf16.count
+        var kept = ""
+        for character in new[prefix..<(new.count - suffix)] {
+            let units = character.utf16.count
+            if units > room { break }
+            kept.append(character)
+            room -= units
+        }
+        return kept.isEmpty ? previous : head + kept + tail
+    }
+}
+
 struct NoticeQuestionView: View {
     let noticeId: String
     let displayName: String
@@ -46,6 +101,7 @@ struct NoticeQuestionView: View {
                     textInput: $viewModel.textInput,
                     isSubmitting: viewModel.isSubmitting,
                     isDeadlinePassed: viewModel.isDeadlinePassed,
+                    submitError: viewModel.submitError,
                     navyBlue: navyBlue,
                     onToggleOption: { viewModel.toggleOption($0) },
                     onSubmit: { viewModel.submit(displayName: displayName, flatNo: flatNo, recipientType: recipientType) }
@@ -104,6 +160,7 @@ struct QuestionNotificationView: View {
                     textInput: $viewModel.textInput,
                     isSubmitting: viewModel.isSubmitting,
                     isDeadlinePassed: viewModel.isDeadlinePassed,
+                    submitError: viewModel.submitError,
                     navyBlue: navyBlue,
                     onToggleOption: { viewModel.toggleOption($0) },
                     onSubmit: { viewModel.submit(displayName: displayName, flatNo: flatNo, recipientType: recipientType) }
@@ -148,9 +205,15 @@ private struct QuestionResponseContentView: View {
     @Binding var textInput: String
     let isSubmitting: Bool
     let isDeadlinePassed: Bool
+    /// Why the last submit failed, shown until the next attempt. Without it a
+    /// failed submit only re-enabled the button, and a resident could walk
+    /// away believing they had answered.
+    let submitError: String?
     let navyBlue: Color
     let onToggleOption: (String) -> Void
     let onSubmit: () -> Void
+
+    private let errorRed = Color(red: 0.898, green: 0.224, blue: 0.208)
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -211,6 +274,8 @@ private struct QuestionResponseContentView: View {
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(Color(white: 0.53))
 
+                            // Both view models cap `textInput` as it is set, so
+                            // typing or pasting past the limit is trimmed here.
                             TextEditor(text: $textInput)
                                 .font(.system(size: 14))
                                 .frame(height: 120)
@@ -220,6 +285,21 @@ private struct QuestionResponseContentView: View {
                                         .stroke(Color(white: 0.88), lineWidth: 1)
                                 )
                                 .cornerRadius(10)
+
+                            Text("\(textInput.utf16.count)/\(QuestionAnswer.maxTextLength)")
+                                .font(.system(size: 11))
+                                .foregroundColor(textInput.utf16.count >= QuestionAnswer.maxTextLength ? errorRed : Color(white: 0.6))
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+
+                        if let submitError {
+                            Text(submitError)
+                                .font(.system(size: 13))
+                                .foregroundColor(errorRed)
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(red: 1.0, green: 0.95, blue: 0.95))
+                                .cornerRadius(8)
                         }
 
                         let canSubmit = options.isEmpty ? !textInput.trimmingCharacters(in: .whitespaces).isEmpty : !selectedOptions.isEmpty

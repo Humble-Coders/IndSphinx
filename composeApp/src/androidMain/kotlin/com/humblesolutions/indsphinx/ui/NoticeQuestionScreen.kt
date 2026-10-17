@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.humblesolutions.indsphinx.model.Notice
+import com.humblesolutions.indsphinx.model.QuestionAnswer
 import com.humblesolutions.indsphinx.viewmodel.NoticeQuestionUiState
 import com.humblesolutions.indsphinx.viewmodel.NoticeQuestionViewModel
 
@@ -221,6 +222,16 @@ private fun QuestionContent(
                             focusedBorderColor = NavyBlue,
                             unfocusedBorderColor = Color(0xFFE0E0E0)
                         )
+                    )
+                    // A separate line rather than supportingText, which would
+                    // sit inside the fixed 120dp height and shrink the box.
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "${textInput.length}/${QuestionAnswer.MAX_TEXT_LENGTH}",
+                        fontSize = 11.sp,
+                        color = if (textInput.length >= QuestionAnswer.MAX_TEXT_LENGTH) Color(0xFFE53935) else Color(0xFF999999),
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
 

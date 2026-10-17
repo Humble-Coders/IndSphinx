@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
+import com.humblesolutions.indsphinx.model.Survey
 
 class MainActivity : ComponentActivity() {
 
@@ -29,7 +30,12 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
-        pendingDeepLink = parseDeepLink(intent)
+        // Only on a fresh launch. When the Activity is recreated (rotation,
+        // reopening from Recents) the launch intent is still the push that
+        // started it, and re-reading it would open that screen again. The
+        // same holds for a task relaunched from Recents after it was closed.
+        val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (savedInstanceState == null && !fromHistory) pendingDeepLink = parseDeepLink(intent)
         setContent {
             App(
                 pendingDeepLink = pendingDeepLink,
@@ -38,6 +44,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * A notification tapped while the app is open. The activity is singleTop
+     * and the notification asks for SINGLE_TOP | CLEAR_TOP, so the running
+     * screen gets the push here instead of being destroyed and rebuilt, which
+     * used to throw away a half-filled survey and replay the splash screen.
+     */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -76,6 +88,14 @@ class MainActivity : ComponentActivity() {
                     val noticeId = intent.getStringExtra(IndSphinxMessagingService.EXTRA_NOTICE_ID) ?: return null
                     PendingDeepLink.NoticeQuestion(noticeId)
                 }
+                IndSphinxMessagingService.DEEP_LINK_NOTICE_SURVEY -> {
+                    val noticeId = intent.getStringExtra(IndSphinxMessagingService.EXTRA_NOTICE_ID) ?: return null
+                    PendingDeepLink.NoticeSurvey(noticeId)
+                }
+                IndSphinxMessagingService.DEEP_LINK_SELECTED_SURVEY -> {
+                    val noticeId = intent.getStringExtra(IndSphinxMessagingService.EXTRA_NOTICE_ID) ?: return null
+                    PendingDeepLink.NoticeSurvey(noticeId, forSelectedResidents = true)
+                }
                 IndSphinxMessagingService.DEEP_LINK_QUESTION_NOTIFICATION -> {
                     val qnId = intent.getStringExtra(IndSphinxMessagingService.EXTRA_QN_ID) ?: return null
                     PendingDeepLink.QuestionNotification(qnId)
@@ -101,6 +121,10 @@ class MainActivity : ComponentActivity() {
         return when {
             fcmType == "NOTICE_BOARD" && fcmNoticeType == "question" && fcmNoticeId.isNotEmpty() ->
                 PendingDeepLink.NoticeQuestion(fcmNoticeId)
+            fcmType == "NOTICE_BOARD" && fcmNoticeType == "survey" && fcmNoticeId.isNotEmpty() ->
+                PendingDeepLink.NoticeSurvey(fcmNoticeId)
+            fcmType == "NOTICE_BOARD" && fcmNoticeType == Survey.PUSH_NOTICE_TYPE_SELECTED && fcmNoticeId.isNotEmpty() ->
+                PendingDeepLink.NoticeSurvey(fcmNoticeId, forSelectedResidents = true)
             fcmType == "QUESTION_NOTIFICATION" && fcmQnId.isNotEmpty() ->
                 PendingDeepLink.QuestionNotification(fcmQnId)
             fcmType == "COMPLAINT"      -> PendingDeepLink.Complaint

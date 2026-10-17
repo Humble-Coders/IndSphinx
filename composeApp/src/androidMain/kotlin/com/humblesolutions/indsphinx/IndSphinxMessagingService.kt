@@ -8,6 +8,7 @@ import androidx.core.app.NotificationCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.humblesolutions.indsphinx.model.Survey
 import com.humblesolutions.indsphinx.repository.BackendUserProfileRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,11 +62,22 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
         )
 
         val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            // Into the running app when there is one (MainActivity is
+            // singleTop): CLEAR_TASK would destroy it, and with it any
+            // answers being typed, when the push is a reminder for that survey.
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             // Specific-target routing first.
             when {
                 type == "NOTICE_BOARD" && noticeType == "question" && noticeId.isNotEmpty() -> {
                     putExtra(EXTRA_DEEP_LINK_TYPE, DEEP_LINK_NOTICE_QUESTION)
+                    putExtra(EXTRA_NOTICE_ID, noticeId)
+                }
+                type == "NOTICE_BOARD" && noticeType == "survey" && noticeId.isNotEmpty() -> {
+                    putExtra(EXTRA_DEEP_LINK_TYPE, DEEP_LINK_NOTICE_SURVEY)
+                    putExtra(EXTRA_NOTICE_ID, noticeId)
+                }
+                type == "NOTICE_BOARD" && noticeType == Survey.PUSH_NOTICE_TYPE_SELECTED && noticeId.isNotEmpty() -> {
+                    putExtra(EXTRA_DEEP_LINK_TYPE, DEEP_LINK_SELECTED_SURVEY)
                     putExtra(EXTRA_NOTICE_ID, noticeId)
                 }
                 type == "QUESTION_NOTIFICATION" && qnId.isNotEmpty() -> {
@@ -121,6 +133,8 @@ class IndSphinxMessagingService : FirebaseMessagingService() {
         const val EXTRA_PASS_ID            = "deep_link_pass_id"
         const val EXTRA_VACANT_REQUEST_ID  = "deep_link_vacant_request_id"
         const val DEEP_LINK_NOTICE_QUESTION         = "NOTICE_QUESTION"
+        const val DEEP_LINK_NOTICE_SURVEY           = "NOTICE_SURVEY"
+        const val DEEP_LINK_SELECTED_SURVEY         = "SELECTED_SURVEY"
         const val DEEP_LINK_QUESTION_NOTIFICATION   = "QUESTION_NOTIFICATION"
         const val DEEP_LINK_OPEN_NOTIFICATIONS      = "OPEN_NOTIFICATIONS"
         const val DEEP_LINK_COMPLAINT               = "COMPLAINT"

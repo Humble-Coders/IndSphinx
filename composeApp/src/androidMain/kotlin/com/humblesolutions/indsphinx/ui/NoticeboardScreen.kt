@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.NavigateNext
+import androidx.compose.material.icons.outlined.Poll
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -58,6 +59,8 @@ private val BackgroundGray = Color(0xFFF2F4F8)
 fun NoticeboardScreen(
     onMenuClick: () -> Unit,
     initialNotice: Notice? = null,
+    /** Called once [initialNotice] has been opened, so it is not opened again. */
+    onInitialNoticeConsumed: () -> Unit = {},
     initialNoticeId: String? = null,
     displayName: String = "",
     flatNo: String = "",
@@ -67,7 +70,11 @@ fun NoticeboardScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(initialNotice) {
-        initialNotice?.let { viewModel.openNoticeDirectly(it) }
+        initialNotice?.let {
+            viewModel.openNoticeDirectly(it)
+            // Otherwise every return to this tab would open it again.
+            onInitialNoticeConsumed()
+        }
     }
     LaunchedEffect(initialNoticeId) {
         initialNoticeId?.let { viewModel.openNoticeByIdWhenLoaded(it) }
@@ -100,6 +107,17 @@ fun NoticeboardScreen(
             BackHandler { viewModel.onBackFromDetail() }
             NoticeQuestionScreen(
                 noticeId = state.notice.id,
+                displayName = displayName,
+                flatNo = flatNo,
+                recipientType = recipientType,
+                onBack = { viewModel.onBackFromDetail() }
+            )
+        }
+        is NoticeboardUiState.Survey -> {
+            BackHandler { viewModel.onBackFromDetail() }
+            SurveyScreen(
+                noticeId = state.notice.id,
+                forSelectedResidents = state.notice.forSelectedResidents,
                 displayName = displayName,
                 flatNo = flatNo,
                 recipientType = recipientType,
@@ -227,6 +245,7 @@ private fun NoticeListContent(notices: List<Notice>, onNoticeClick: (Notice) -> 
 @Composable
 private fun NoticeCard(notice: Notice, onClick: () -> Unit) {
     val isQuestion = notice.type == "question"
+    val isSurvey = notice.isSurvey
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -258,6 +277,24 @@ private fun NoticeCard(notice: Notice, onClick: () -> Unit) {
                         Text("Question", fontSize = 11.sp, color = Color(0xFFE65100), fontWeight = FontWeight.Medium)
                     }
                 }
+                if (isSurvey) {
+                    Spacer(Modifier.width(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFFF3E5F5))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Outlined.Poll, null, tint = Color(0xFF6A1B9A), modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text("Survey", fontSize = 11.sp, color = Color(0xFF6A1B9A), fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+            if (notice.forSelectedResidents) {
+                Spacer(Modifier.height(8.dp))
+                SelectedResidentsChip()
             }
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -287,7 +324,11 @@ private fun NoticeCard(notice: Notice, onClick: () -> Unit) {
                 modifier = Modifier.clickable { onClick() }
             ) {
                 Text(
-                    if (isQuestion) "Respond" else "View Details",
+                    when {
+                        isSurvey -> "Take Survey"
+                        isQuestion -> "Respond"
+                        else -> "View Details"
+                    },
                     fontSize = 13.sp,
                     color = NavyBlue,
                     fontWeight = FontWeight.Medium

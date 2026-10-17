@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 import FirebaseAuth
 import FirebaseCore
 import FirebaseMessaging
@@ -63,6 +64,10 @@ class IOSAuthRepository {
             print("[FCM-iOS] deleteToken failed: \(error.localizedDescription)")
         }
         try? auth.signOut()
+        // This resident's notifications, and any screen a tapped one asked
+        // for, must not reach whoever signs in next on this phone.
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+        await MainActor.run { AppNavigationState.shared.clearPending() }
     }
 
     /// Calls the asia-south1 `requestPasswordReset` Callable Cloud Function

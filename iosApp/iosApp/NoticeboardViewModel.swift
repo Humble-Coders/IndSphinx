@@ -9,6 +9,7 @@ class NoticeboardViewModel: ObservableObject {
     @Published var notices: [Notice] = []
     @Published var selectedNotice: Notice? = nil
     @Published var questionNotice: Notice? = nil
+    @Published var surveyNotice: Notice? = nil
 
     init() {
         startListening()
@@ -20,12 +21,16 @@ class NoticeboardViewModel: ObservableObject {
             Task { @MainActor in
                 self.notices = updated
                 if let current = self.selectedNotice,
-                   let refreshed = updated.first(where: { $0.id == current.id }) {
+                   let refreshed = updated.first(where: { $0.key == current.key }) {
                     self.selectedNotice = refreshed
                 }
                 if let current = self.questionNotice,
-                   let refreshed = updated.first(where: { $0.id == current.id }) {
+                   let refreshed = updated.first(where: { $0.key == current.key }) {
                     self.questionNotice = refreshed
+                }
+                if let current = self.surveyNotice,
+                   let refreshed = updated.first(where: { $0.key == current.key }) {
+                    self.surveyNotice = refreshed
                 }
                 // Resolve pending notice ID
                 if let pendingId = self.pendingNoticeId {
@@ -64,15 +69,19 @@ class NoticeboardViewModel: ObservableObject {
     func onBackFromDetail() {
         selectedNotice = nil
         questionNotice = nil
+        surveyNotice = nil
     }
 
     private func open(notice: Notice) {
+        selectedNotice = nil
+        questionNotice = nil
+        surveyNotice = nil
         if notice.type == "question" {
             questionNotice = notice
-            selectedNotice = nil
+        } else if notice.isSurvey {
+            surveyNotice = notice
         } else {
             selectedNotice = notice
-            questionNotice = nil
         }
     }
 }

@@ -8,10 +8,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.humblesolutions.indsphinx.model.QuestionAnswer
 import com.humblesolutions.indsphinx.model.QuestionNotification
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
 import com.humblesolutions.indsphinx.repository.BackendQuestionNotificationRepository
 import com.humblesolutions.indsphinx.usecase.SubmitQuestionNotificationResponseUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -104,7 +106,10 @@ class QuestionNotificationViewModel(
 
     fun setTextInput(text: String) {
         val state = _uiState.value as? QuestionNotificationUiState.Ready ?: return
-        _uiState.value = state.copy(textInput = text)
+        // Limited here: a paste longer than the limit keeps its first part
+        // instead of being refused outright, and typing into a full answer is
+        // refused rather than silently pushing its end off.
+        _uiState.value = state.copy(textInput = QuestionAnswer.limitEdit(state.textInput, text))
     }
 
     fun submit(displayName: String, flatNo: String, recipientType: String) {
@@ -134,6 +139,9 @@ class QuestionNotificationViewModel(
                 responseListenerJob?.cancel()
                 Log.d(TAG, "submit: success qnId=$qnId")
                 _uiState.value = QuestionNotificationUiState.AlreadyResponded(state.qn)
+            } catch (e: CancellationException) {
+                // The screen went away mid-submit; the write is still queued, nothing failed.
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "submit: FAILED qnId=$qnId — ${e.message}", e)
                 Toast.makeText(

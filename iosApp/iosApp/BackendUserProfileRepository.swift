@@ -29,6 +29,25 @@ class BackendUserProfileRepository {
         print("[FCM-iOS] Firestore setData fcm_token for uid=\(uid)")
         try await db.collection("Users").document(uid).setData(["fcm_token": token], merge: true)
         print("[FCM-iOS] Firestore setData completed for uid=\(uid)")
+        reportAppNoticeBoardVersion(uid: uid, token: token)
+    }
+
+    /// Tells the backend which notice-board features this app supports, and
+    /// the push token it reports from, so a resident on an older app is asked
+    /// to update when sent a survey only this version can show (see
+    /// SurveyRules.appNoticeBoardVersion). The backend trusts the version only
+    /// while that token is still the account's `fcm_token`: an older app
+    /// signed in on another phone later takes the token over.
+    ///
+    /// A separate, best-effort write, and not waited for: it must never get in
+    /// the way of the push token, or slow down signing in.
+    private func reportAppNoticeBoardVersion(uid: String, token: String) {
+        db.collection("Users").document(uid).updateData([
+            "appNoticeBoardVersion": SurveyRules.appNoticeBoardVersion,
+            "appNoticeBoardVersionToken": token,
+        ]) { error in
+            if let error { print("[NoticeBoardFlow] appNoticeBoardVersion not reported: \(error)") }
+        }
     }
 
     /// Removes the device's FCM token mapping from the user doc on sign-out

@@ -6,6 +6,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationManagerCompat
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -71,8 +73,12 @@ fun App(
                 )
             }
             composable(Screen.Home.route) {
+                val context = LocalContext.current
                 HomeScreen(
                     onSignOut = {
+                        // This resident's notifications must not stay on the
+                        // phone for whoever signs in next to tap.
+                        NotificationManagerCompat.from(context).cancelAll()
                         navController.navigate(Screen.Login.route) {
                             popUpTo(Screen.Home.route) { inclusive = true }
                         }

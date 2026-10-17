@@ -1,15 +1,19 @@
 package com.humblesolutions.indsphinx.viewmodel
 
 import android.app.Application
+import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.humblesolutions.indsphinx.model.Notice
+import com.humblesolutions.indsphinx.model.QuestionAnswer
 import com.humblesolutions.indsphinx.repository.AndroidAuthRepository
 import com.humblesolutions.indsphinx.repository.BackendNoticeboardRepository
 import com.humblesolutions.indsphinx.usecase.SubmitNoticeResponseUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -102,7 +106,10 @@ class NoticeQuestionViewModel(
 
     fun setTextInput(text: String) {
         val state = _uiState.value as? NoticeQuestionUiState.Ready ?: return
-        _uiState.value = state.copy(textInput = text)
+        // Limited here: a paste longer than the limit keeps its first part
+        // instead of being refused outright, and typing into a full answer is
+        // refused rather than silently pushing its end off.
+        _uiState.value = state.copy(textInput = QuestionAnswer.limitEdit(state.textInput, text))
     }
 
     fun submit(displayName: String, flatNo: String, recipientType: String) {
@@ -123,7 +130,19 @@ class NoticeQuestionViewModel(
                 )
                 responseListenerJob?.cancel()
                 _uiState.value = NoticeQuestionUiState.AlreadyResponded(state.notice)
+            } catch (e: CancellationException) {
+                // The screen went away mid-submit; the write is still queued, nothing failed.
+                throw e
             } catch (e: Exception) {
+                // Previously this only re-enabled the button, so a resident
+                // could walk away believing they had answered. Same message
+                // and form as the notification-question screen.
+                Log.e(TAG, "submit: FAILED noticeId=$noticeId — ${e.message}", e)
+                Toast.makeText(
+                    getApplication(),
+                    "Could not submit response: ${e.message ?: "unknown error"}",
+                    Toast.LENGTH_LONG,
+                ).show()
                 _uiState.value = state.copy(isSubmitting = false)
             }
         }
@@ -135,6 +154,8 @@ class NoticeQuestionViewModel(
     }
 
     companion object {
+        private const val TAG = "NoticeBoardFlow"
+
         fun factory(noticeId: String) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {

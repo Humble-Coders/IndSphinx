@@ -3,6 +3,7 @@ package com.humblesolutions.indsphinx.repository
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.humblesolutions.indsphinx.model.OccupantProfile
+import com.humblesolutions.indsphinx.model.Survey
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -35,6 +36,31 @@ class BackendUserProfileRepository : UserProfileRepository {
 
     suspend fun updateFcmToken(uid: String, token: String) {
         db.collection("Users").document(uid).update("fcm_token", token).await()
+        reportAppNoticeBoardVersion(uid, token)
+    }
+
+    /**
+     * Tells the backend which notice-board features this app supports, and
+     * the push token it reports from, so a resident on an older app is asked
+     * to update when sent a survey only this version can show (see
+     * Survey.APP_NOTICE_BOARD_VERSION). The backend trusts the version only
+     * while that token is still the account's `fcm_token`: an older app
+     * signed in on another phone later takes the token over.
+     *
+     * A separate, best-effort write, and not waited for: it must never get in
+     * the way of the push token, or slow down signing in.
+     */
+    private fun reportAppNoticeBoardVersion(uid: String, token: String) {
+        db.collection("Users").document(uid)
+            .update(
+                mapOf(
+                    "appNoticeBoardVersion" to Survey.APP_NOTICE_BOARD_VERSION,
+                    "appNoticeBoardVersionToken" to token
+                )
+            )
+            .addOnFailureListener { e ->
+                android.util.Log.w("NoticeBoardFlow", "appNoticeBoardVersion not reported: ${e.message}")
+            }
     }
 
     /**

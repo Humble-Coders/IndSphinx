@@ -9,6 +9,9 @@ private let tag = "[FCM-iOS]"
 class AppNavigationState: ObservableObject {
     static let shared = AppNavigationState()
     @Published var pendingNoticeQuestionId: String?
+    @Published var pendingNoticeSurveyId: String?
+    /// A survey sent to selected residents, opened from its push.
+    @Published var pendingSelectedSurveyId: String?
     @Published var pendingQnId: String?
     /// Set when the user taps a system tray push for a normal targeted
     /// notification — opens the in-app notifications list.
@@ -22,6 +25,20 @@ class AppNavigationState: ObservableObject {
     @Published var pendingOpenVacantRequest: Bool = false
     /// Set when the user taps an asset push — routes to the My Assets screen.
     @Published var pendingOpenAssets: Bool = false
+
+    /// Forgets every screen a tapped push asked for: on sign-out, so none of
+    /// it opens for whoever signs in next on this phone.
+    func clearPending() {
+        pendingNoticeQuestionId = nil
+        pendingNoticeSurveyId = nil
+        pendingSelectedSurveyId = nil
+        pendingQnId = nil
+        pendingOpenNotifications = false
+        pendingOpenComplaints = false
+        pendingOpenVisitorPass = false
+        pendingOpenVacantRequest = false
+        pendingOpenAssets = false
+    }
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
@@ -156,6 +173,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             // Specific-target routing first.
             if type == "NOTICE_BOARD" && noticeType == "question" && !noticeId.isEmpty {
                 AppNavigationState.shared.pendingNoticeQuestionId = noticeId
+            } else if type == "NOTICE_BOARD" && noticeType == "survey" && !noticeId.isEmpty {
+                AppNavigationState.shared.pendingNoticeSurveyId = noticeId
+            } else if type == "NOTICE_BOARD" && noticeType == SurveyRules.pushNoticeTypeSelected && !noticeId.isEmpty {
+                AppNavigationState.shared.pendingSelectedSurveyId = noticeId
             } else if type == "QUESTION_NOTIFICATION" && !qnId.isEmpty {
                 AppNavigationState.shared.pendingQnId = qnId
             } else if type == "COMPLAINT" {

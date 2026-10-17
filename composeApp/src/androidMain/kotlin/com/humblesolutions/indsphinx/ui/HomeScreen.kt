@@ -78,6 +78,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.humblesolutions.indsphinx.model.AppNotification
@@ -116,8 +118,43 @@ private sealed class HomeOverlay {
     object Notifications : HomeOverlay()
     object Assets : HomeOverlay()
     data class NoticeQuestion(val noticeId: String) : HomeOverlay()
+    data class NoticeSurvey(val noticeId: String, val forSelectedResidents: Boolean = false) : HomeOverlay()
     data class QuestionNotification(val qnId: String) : HomeOverlay()
 }
+
+/** Keeps the open overlay when the activity is rebuilt (rotation, dark mode, the system reclaiming memory). */
+private val HomeOverlaySaver = listSaver<HomeOverlay, String>(
+    save = { o ->
+        when (o) {
+            HomeOverlay.None -> listOf("none")
+            HomeOverlay.VisitorPass -> listOf("visitorPass")
+            HomeOverlay.Feedback -> listOf("feedback")
+            HomeOverlay.Documents -> listOf("documents")
+            HomeOverlay.CoordinatorForm -> listOf("coordinatorForm")
+            HomeOverlay.FlatVacant -> listOf("flatVacant")
+            HomeOverlay.Notifications -> listOf("notifications")
+            HomeOverlay.Assets -> listOf("assets")
+            is HomeOverlay.NoticeQuestion -> listOf("noticeQuestion", o.noticeId)
+            is HomeOverlay.NoticeSurvey -> listOf("noticeSurvey", o.noticeId, o.forSelectedResidents.toString())
+            is HomeOverlay.QuestionNotification -> listOf("questionNotification", o.qnId)
+        }
+    },
+    restore = { l ->
+        when (l.firstOrNull()) {
+            "visitorPass" -> HomeOverlay.VisitorPass
+            "feedback" -> HomeOverlay.Feedback
+            "documents" -> HomeOverlay.Documents
+            "coordinatorForm" -> HomeOverlay.CoordinatorForm
+            "flatVacant" -> HomeOverlay.FlatVacant
+            "notifications" -> HomeOverlay.Notifications
+            "assets" -> HomeOverlay.Assets
+            "noticeQuestion" -> l.getOrNull(1)?.let { HomeOverlay.NoticeQuestion(it) } ?: HomeOverlay.None
+            "noticeSurvey" -> l.getOrNull(1)?.let { HomeOverlay.NoticeSurvey(it, l.getOrNull(2) == "true") } ?: HomeOverlay.None
+            "questionNotification" -> l.getOrNull(1)?.let { HomeOverlay.QuestionNotification(it) } ?: HomeOverlay.None
+            else -> HomeOverlay.None
+        }
+    }
+)
 
 @Composable
 fun HomeScreen(
@@ -132,6 +169,55 @@ fun HomeScreen(
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     val unreadCount by viewModel.unreadCount.collectAsStateWithLifecycle()
     val revisedFormState by viewModel.revisedFormState.collectAsStateWithLifecycle()
+
+    // Above the revised-form check below, which returns early: state declared
+    // after it is thrown away while that form shows, which lost the screen a
+    // tapped notification had just opened.
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
+    var overlay by rememberSaveable(stateSaver = HomeOverlaySaver) { mutableStateOf<HomeOverlay>(HomeOverlay.None) }
+
+    LaunchedEffect(pendingDeepLink) {
+        when (val dl = pendingDeepLink) {
+            is com.humblesolutions.indsphinx.PendingDeepLink.NoticeQuestion -> {
+                selectedTab = 2
+                overlay = HomeOverlay.NoticeQuestion(dl.noticeId)
+                onDeepLinkConsumed()
+            }
+            is com.humblesolutions.indsphinx.PendingDeepLink.NoticeSurvey -> {
+                selectedTab = 2
+                overlay = HomeOverlay.NoticeSurvey(dl.noticeId, dl.forSelectedResidents)
+                onDeepLinkConsumed()
+            }
+            is com.humblesolutions.indsphinx.PendingDeepLink.QuestionNotification -> {
+                overlay = HomeOverlay.QuestionNotification(dl.qnId)
+                onDeepLinkConsumed()
+            }
+            com.humblesolutions.indsphinx.PendingDeepLink.Complaint -> {
+                // Land on the Complaints tab; the existing list and titles
+                // tell the user which complaint the push referred to.
+                overlay = HomeOverlay.None
+                selectedTab = 1
+                onDeepLinkConsumed()
+            }
+            com.humblesolutions.indsphinx.PendingDeepLink.VisitorPass -> {
+                overlay = HomeOverlay.VisitorPass
+                onDeepLinkConsumed()
+            }
+            com.humblesolutions.indsphinx.PendingDeepLink.FlatVacantRequest -> {
+                overlay = HomeOverlay.FlatVacant
+                onDeepLinkConsumed()
+            }
+            com.humblesolutions.indsphinx.PendingDeepLink.Assets -> {
+                overlay = HomeOverlay.Assets
+                onDeepLinkConsumed()
+            }
+            com.humblesolutions.indsphinx.PendingDeepLink.OpenNotifications -> {
+                overlay = HomeOverlay.Notifications
+                onDeepLinkConsumed()
+            }
+            null -> Unit
+        }
+    }
 
     // Blocking check — must accept revised form before accessing home
     when (val rfs = revisedFormState) {
@@ -169,55 +255,15 @@ fun HomeScreen(
         RevisedFormState.Hidden -> Unit
     }
 
-    var selectedTab by remember { mutableStateOf(0) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var ongoingComplaints by remember { mutableStateOf<List<Complaint>>(emptyList()) }
-    var overlay by remember { mutableStateOf<HomeOverlay>(HomeOverlay.None) }
     var pendingComplaintAction by remember { mutableStateOf<ComplaintStartAction?>(null) }
     var pendingNotice by remember { mutableStateOf<Notice?>(null) }
     var showLogoutConfirmation by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState) {
         if (uiState is HomeUiState.AccessDenied) onSignOut()
-    }
-
-    LaunchedEffect(pendingDeepLink) {
-        when (val dl = pendingDeepLink) {
-            is com.humblesolutions.indsphinx.PendingDeepLink.NoticeQuestion -> {
-                selectedTab = 2
-                overlay = HomeOverlay.NoticeQuestion(dl.noticeId)
-                onDeepLinkConsumed()
-            }
-            is com.humblesolutions.indsphinx.PendingDeepLink.QuestionNotification -> {
-                overlay = HomeOverlay.QuestionNotification(dl.qnId)
-                onDeepLinkConsumed()
-            }
-            com.humblesolutions.indsphinx.PendingDeepLink.Complaint -> {
-                // Land on the Complaints tab; the existing list and titles
-                // tell the user which complaint the push referred to.
-                overlay = HomeOverlay.None
-                selectedTab = 1
-                onDeepLinkConsumed()
-            }
-            com.humblesolutions.indsphinx.PendingDeepLink.VisitorPass -> {
-                overlay = HomeOverlay.VisitorPass
-                onDeepLinkConsumed()
-            }
-            com.humblesolutions.indsphinx.PendingDeepLink.FlatVacantRequest -> {
-                overlay = HomeOverlay.FlatVacant
-                onDeepLinkConsumed()
-            }
-            com.humblesolutions.indsphinx.PendingDeepLink.Assets -> {
-                overlay = HomeOverlay.Assets
-                onDeepLinkConsumed()
-            }
-            com.humblesolutions.indsphinx.PendingDeepLink.OpenNotifications -> {
-                overlay = HomeOverlay.Notifications
-                onDeepLinkConsumed()
-            }
-            null -> Unit
-        }
     }
 
     val due = formDueStatus
@@ -359,6 +405,14 @@ fun HomeScreen(
             )
             is HomeOverlay.NoticeQuestion -> NoticeQuestionScreen(
                 noticeId = currentOverlay.noticeId,
+                displayName = name,
+                flatNo = flatNumber,
+                recipientType = role,
+                onBack = { overlay = HomeOverlay.None }
+            )
+            is HomeOverlay.NoticeSurvey -> SurveyScreen(
+                noticeId = currentOverlay.noticeId,
+                forSelectedResidents = currentOverlay.forSelectedResidents,
                 displayName = name,
                 flatNo = flatNumber,
                 recipientType = role,
@@ -541,6 +595,7 @@ fun HomeScreen(
                                 2 -> NoticeboardScreen(
                                     onMenuClick = { scope.launch { drawerState.open() } },
                                     initialNotice = pendingNotice,
+                                    onInitialNoticeConsumed = { pendingNotice = null },
                                     displayName = name,
                                     flatNo = flatNumber,
                                     recipientType = role

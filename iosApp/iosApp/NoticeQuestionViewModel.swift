@@ -17,9 +17,18 @@ class NoticeQuestionViewModel: ObservableObject {
 
     @Published var state: State = .loading
     @Published var selectedOptions: Set<String> = []
-    @Published var textInput: String = ""
+    /// Capped as it is set. Re-assigning the trimmed value publishes a second
+    /// change, which is what makes the TextEditor drop the extra characters
+    /// on screen; trimming only at submit would leave them visible but unsent.
+    @Published var textInput: String = "" {
+        didSet {
+            let limited = QuestionAnswer.limitEdit(previous: oldValue, proposed: textInput)
+            if limited != textInput { textInput = limited }
+        }
+    }
     @Published var isSubmitting: Bool = false
     @Published var isDeadlinePassed: Bool = false
+    @Published var submitError: String? = nil
 
     private var responseListener: ListenerRegistration?
 
@@ -82,6 +91,7 @@ class NoticeQuestionViewModel: ObservableObject {
               let uid = Auth.auth().currentUser?.uid,
               !isSubmitting, !isDeadlinePassed else { return }
         isSubmitting = true
+        submitError = nil
         Task {
             do {
                 try await repo.submitResponse(
@@ -91,13 +101,23 @@ class NoticeQuestionViewModel: ObservableObject {
                     flatNo: flatNo,
                     recipientType: recipientType,
                     selectedOptions: Array(selectedOptions),
-                    textResponse: textInput
+                    textResponse: QuestionAnswer.cap(textInput)
                 )
                 responseListener?.remove()
                 responseListener = nil
                 state = .alreadyResponded(notice)
             } catch {
+                // Previously this only re-enabled the button, so a resident
+                // could walk away believing they had answered.
+                print("[NoticeBoardFlow] submit: FAILED noticeId=\(noticeId) error=\(error)")
+                submitError = "Could not submit response: \(error.localizedDescription)"
                 isSubmitting = false
+                // Firestore shows the answer locally before the server
+                // replies, so the response listener has usually switched the
+                // screen to "Response Recorded" by the time a rejection
+                // arrives. Put the form back so the error is seen and the
+                // resident can try again; their text and choices are kept.
+                state = .ready(notice)
             }
         }
     }

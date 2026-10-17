@@ -2,6 +2,8 @@ package com.humblesolutions.indsphinx
 
 sealed class PendingDeepLink {
     data class NoticeQuestion(val noticeId: String) : PendingDeepLink()
+    /** [forSelectedResidents]: a survey sent to chosen residents (Survey.collectionFor). */
+    data class NoticeSurvey(val noticeId: String, val forSelectedResidents: Boolean = false) : PendingDeepLink()
     data class QuestionNotification(val qnId: String) : PendingDeepLink()
     /** Open the Complaints tab so the user can pick the row from the existing list. */
     object Complaint : PendingDeepLink()

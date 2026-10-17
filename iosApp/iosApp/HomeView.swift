@@ -21,10 +21,37 @@ struct HomeView: View {
     @State private var showLogoutConfirmation = false
     @State private var showNotifications = false
     @State private var pendingNoticeQuestionId: String? = nil
+    /// A survey opened from a push: its id and which collection it is in.
+    @State private var pendingSurvey: SurveyRoute? = nil
     @State private var pendingQnId: String? = nil
 
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
     private let backgroundGray = Color(red: 0.949, green: 0.957, blue: 0.973)
+
+    /// A tapped push opens its screen at once. SwiftUI shows one full-screen
+    /// cover at a time, so a screen already open on top of Home (a visitor
+    /// pass, another survey) is closed first; the push's screen then opens as
+    /// it goes, the way Android replaces its overlay. Without this the tap
+    /// seemed to do nothing until that screen was closed. The required
+    /// amenities form is never closed.
+    private func closeScreensForPush() {
+        showVisitorPass = false
+        showFeedback = false
+        showDocuments = false
+        showCoordinatorForm = false
+        showFlatVacant = false
+        showAssets = false
+        pendingNoticeQuestionId = nil
+        pendingSurvey = nil
+        pendingQnId = nil
+    }
+
+    /// The same survey already open stays as it is, answers and all.
+    private func openSurveyFromPush(_ route: SurveyRoute) {
+        guard pendingSurvey != route else { return }
+        closeScreensForPush()
+        pendingSurvey = route
+    }
 
     private var ready: (name: String, greeting: String, email: String, role: String, empId: String, flatNumber: String, occupantFrom: Date?, isCoordinator: Bool, occupantDocId: String, flatId: String)? {
         if case .ready(let name, let greeting, let email, let role, let empId, let flatNumber, let occupantFrom, let isCoordinator, let occupantDocId, let flatId) = viewModel.state {
@@ -146,6 +173,7 @@ struct HomeView: View {
                 NoticeboardView(
                     onMenuTap: { isDrawerOpen = true },
                     initialNotice: pendingNotice,
+                    onInitialNoticeConsumed: { pendingNotice = nil },
                     displayName: ready?.name ?? "",
                     flatNo: ready?.flatNumber ?? "",
                     recipientType: ready?.role ?? ""
@@ -232,11 +260,23 @@ struct HomeView: View {
         }
         .onChange(of: navState.pendingNoticeQuestionId) { noticeId in
             guard let noticeId else { return }
+            if pendingNoticeQuestionId != noticeId { closeScreensForPush() }
             pendingNoticeQuestionId = noticeId
             navState.pendingNoticeQuestionId = nil
         }
+        .onChange(of: navState.pendingNoticeSurveyId) { noticeId in
+            guard let noticeId else { return }
+            openSurveyFromPush(SurveyRoute(noticeId: noticeId, forSelected: false))
+            navState.pendingNoticeSurveyId = nil
+        }
+        .onChange(of: navState.pendingSelectedSurveyId) { noticeId in
+            guard let noticeId else { return }
+            openSurveyFromPush(SurveyRoute(noticeId: noticeId, forSelected: true))
+            navState.pendingSelectedSurveyId = nil
+        }
         .onChange(of: navState.pendingQnId) { qnId in
             guard let qnId else { return }
+            if pendingQnId != qnId { closeScreensForPush() }
             pendingQnId = qnId
             navState.pendingQnId = nil
         }
@@ -287,6 +327,14 @@ struct HomeView: View {
             if let pending = navState.pendingNoticeQuestionId, !pending.isEmpty {
                 pendingNoticeQuestionId = pending
                 navState.pendingNoticeQuestionId = nil
+            }
+            if let pending = navState.pendingNoticeSurveyId, !pending.isEmpty {
+                pendingSurvey = SurveyRoute(noticeId: pending, forSelected: false)
+                navState.pendingNoticeSurveyId = nil
+            }
+            if let pending = navState.pendingSelectedSurveyId, !pending.isEmpty {
+                pendingSurvey = SurveyRoute(noticeId: pending, forSelected: true)
+                navState.pendingSelectedSurveyId = nil
             }
             if let pending = navState.pendingQnId, !pending.isEmpty {
                 pendingQnId = pending
@@ -402,6 +450,16 @@ struct HomeView: View {
                 onBack: { pendingNoticeQuestionId = nil }
             )
         }
+        .fullScreenCover(item: $pendingSurvey) { route in
+            SurveyView(
+                noticeId: route.noticeId,
+                forSelected: route.forSelected,
+                displayName: ready?.name ?? "",
+                flatNo: ready?.flatNumber ?? "",
+                recipientType: ready?.role ?? "",
+                onBack: { pendingSurvey = nil }
+            )
+        }
         .fullScreenCover(item: Binding(
             get: { pendingQnId.map { IdentifiableString(value: $0) } },
             set: { if $0 == nil { pendingQnId = nil } }
@@ -421,9 +479,20 @@ struct HomeView: View {
     }
 }
 
+/// A pending deep-link id for `fullScreenCover(item:)`. Its identity is the
+/// id itself: a fresh UUID on every read would make each re-render of
+/// HomeView look like a new item, and SwiftUI may then dismiss and rebuild
+/// the open screen, losing what the resident had entered.
+/// A survey to open: its id, and whether it was sent to selected residents.
+private struct SurveyRoute: Identifiable, Equatable {
+    let noticeId: String
+    let forSelected: Bool
+    var id: String { "\(forSelected ? "selected" : "board"):\(noticeId)" }
+}
+
 private struct IdentifiableString: Identifiable {
-    let id = UUID()
     let value: String
+    var id: String { value }
 }
 
 // MARK: - Header
