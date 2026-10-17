@@ -5,6 +5,8 @@ struct HomeView: View {
     let onSignOut: () -> Void
 
     @StateObject private var viewModel = HomeViewModel()
+    /// Surveys' view models for this signed-in session (see SurveySessionStore).
+    @StateObject private var surveys = SurveySessionStore()
     @ObservedObject private var navState = AppNavigationState.shared
     @State private var selectedTab = 0
     @State private var isDrawerOpen = false
@@ -172,6 +174,7 @@ struct HomeView: View {
                 // Noticeboard Tab
                 NoticeboardView(
                     onMenuTap: { isDrawerOpen = true },
+                    surveys: surveys,
                     initialNotice: pendingNotice,
                     onInitialNoticeConsumed: { pendingNotice = nil },
                     displayName: ready?.name ?? "",
@@ -451,9 +454,10 @@ struct HomeView: View {
             )
         }
         .fullScreenCover(item: $pendingSurvey) { route in
+            // The same view model as the notice board's for this survey, so a
+            // reminder opens the answers already given, not a blank form.
             SurveyView(
-                noticeId: route.noticeId,
-                forSelected: route.forSelected,
+                viewModel: surveys.model(noticeId: route.noticeId, forSelected: route.forSelected),
                 displayName: ready?.name ?? "",
                 flatNo: ready?.flatNumber ?? "",
                 recipientType: ready?.role ?? "",

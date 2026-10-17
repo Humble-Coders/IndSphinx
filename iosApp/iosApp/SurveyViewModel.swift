@@ -311,3 +311,21 @@ class SurveyViewModel: ObservableObject {
         }
     }
 }
+
+/// The survey screens' view models: one per survey for as long as the
+/// resident is signed in. HomeView owns the store, so signing out drops them
+/// all. Answers in progress survive leaving the screen, and the same survey
+/// opened from the notice board and from a notification (a reminder) shows
+/// the same answers, as on Android, where both share one view model.
+@MainActor
+final class SurveySessionStore: ObservableObject {
+    private var models: [String: SurveyViewModel] = [:]
+
+    func model(noticeId: String, forSelected: Bool) -> SurveyViewModel {
+        let key = "\(forSelected ? "selected" : "board"):\(noticeId)"
+        if let existing = models[key] { return existing }
+        let created = SurveyViewModel(noticeId: noticeId, forSelected: forSelected)
+        models[key] = created
+        return created
+    }
+}

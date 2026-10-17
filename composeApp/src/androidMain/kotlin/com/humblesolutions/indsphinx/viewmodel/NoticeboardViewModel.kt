@@ -73,21 +73,40 @@ class NoticeboardViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.value = stateForNotice(notice, notices)
     }
 
+    /**
+     * The notices as last loaded, whichever screen of this tab is showing;
+     * null until the first list arrives.
+     */
+    private fun loadedNotices(): List<Notice>? = when (val s = _uiState.value) {
+        is NoticeboardUiState.Loaded -> s.notices
+        is NoticeboardUiState.Detail -> s.notices
+        is NoticeboardUiState.Question -> s.notices
+        is NoticeboardUiState.Survey -> s.notices
+        else -> null
+    }
+
+    /**
+     * Opens [notice] at once, also over another notice, question or survey
+     * already open here (its answers are kept by its own view model). Only
+     * before the first list has loaded is it held until then.
+     */
     fun openNoticeDirectly(notice: Notice) {
-        val current = _uiState.value
-        if (current is NoticeboardUiState.Loaded) {
-            val found = current.notices.find { it.id == notice.id } ?: notice
-            _uiState.value = stateForNotice(found, current.notices)
+        val notices = loadedNotices()
+        if (notices != null) {
+            pendingNotice = null
+            val found = notices.find { it.id == notice.id } ?: notice
+            _uiState.value = stateForNotice(found, notices)
         } else {
             pendingNotice = notice
         }
     }
 
     fun openNoticeByIdWhenLoaded(noticeId: String) {
-        val current = _uiState.value
-        if (current is NoticeboardUiState.Loaded) {
-            val found = current.notices.find { it.id == noticeId } ?: return
-            _uiState.value = stateForNotice(found, current.notices)
+        val notices = loadedNotices()
+        if (notices != null) {
+            pendingNoticeId = null
+            val found = notices.find { it.id == noticeId } ?: return
+            _uiState.value = stateForNotice(found, notices)
         } else {
             pendingNoticeId = noticeId
         }

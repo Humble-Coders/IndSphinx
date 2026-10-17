@@ -299,12 +299,16 @@ class SurveyViewModel(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "survey submit: FAILED noticeId=$noticeId: ${e.message}", e)
-                submitInFlight = false
                 // The rules refuse an answer once the survey is deleted (or,
                 // for selected residents, no longer sent to this resident) and
                 // once its deadline has passed. Say which, rather than a
                 // permissions error.
                 val fresh = runCatching { noticeboardRepo.fetchNotice(noticeId, forSelectedResidents) }
+                // Still in flight until here: the refused answers disappear
+                // from this phone while the survey is fetched, and the
+                // listener must leave the form to this handler, so there is
+                // one message and Submit stays off until it is shown.
+                submitInFlight = false
                 if (fresh.isSuccess && fresh.getOrNull() == null) {
                     showUnavailable()
                     return@launch

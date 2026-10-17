@@ -1,35 +1,15 @@
 import SwiftUI
 
 struct SurveyView: View {
-    let noticeId: String
-    /// True for a survey sent to selected residents (see SurveyRules.collection(forSelected:)).
-    let forSelected: Bool
+    /// From `SurveySessionStore`, so the answers outlive this screen.
+    @ObservedObject var viewModel: SurveyViewModel
     let displayName: String
     let flatNo: String
     let recipientType: String
     let onBack: () -> Void
 
-    @StateObject private var viewModel: SurveyViewModel
-
     private let navyBlue = Color(red: 0.118, green: 0.176, blue: 0.42)
     private let backgroundGray = Color(red: 0.949, green: 0.957, blue: 0.973)
-
-    init(
-        noticeId: String,
-        forSelected: Bool = false,
-        displayName: String,
-        flatNo: String,
-        recipientType: String,
-        onBack: @escaping () -> Void
-    ) {
-        self.noticeId = noticeId
-        self.forSelected = forSelected
-        self.displayName = displayName
-        self.flatNo = flatNo
-        self.recipientType = recipientType
-        self.onBack = onBack
-        _viewModel = StateObject(wrappedValue: SurveyViewModel(noticeId: noticeId, forSelected: forSelected))
-    }
 
     var body: some View {
         VStack(spacing: 0) {

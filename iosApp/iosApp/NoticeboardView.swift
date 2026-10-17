@@ -2,6 +2,8 @@ import SwiftUI
 
 struct NoticeboardView: View {
     let onMenuTap: () -> Void
+    /// Surveys' view models, shared with the ones opened from notifications.
+    let surveys: SurveySessionStore
     var initialNotice: Notice? = nil
     /// Called once `initialNotice` has been opened, so the next tap on the
     /// same notice from Home opens it again.
@@ -27,14 +29,13 @@ struct NoticeboardView: View {
                 )
             } else if let notice = viewModel.surveyNotice {
                 SurveyView(
-                    noticeId: notice.id,
-                    forSelected: notice.forSelectedResidents,
+                    viewModel: surveys.model(noticeId: notice.id, forSelected: notice.forSelectedResidents),
                     displayName: displayName,
                     flatNo: flatNo,
                     recipientType: recipientType,
                     onBack: { viewModel.onBackFromDetail() }
                 )
-                // A new view model per survey, never one carried over.
+                // Fresh screen state per survey; the answers live in the store.
                 .id("\(notice.forSelectedResidents ? "selected" : "board"):\(notice.id)")
             } else if viewModel.selectedNotice != nil {
                 NoticeDetailHeaderView(
